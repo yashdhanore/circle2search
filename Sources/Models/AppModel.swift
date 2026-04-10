@@ -13,23 +13,32 @@ final class AppModel {
     var lastRecognizedText = ""
     var lastTranslatedText = ""
     var isTranslationInFlight = false
+    var isSelectionPreparationInFlight = false
+    var isOCRInFlight = false
 
     private let hotkeyService: GlobalHotkeyService
     private let overlayCoordinator: SelectionOverlayCoordinator
     private let searchService: SearchService
+    private let screenCaptureService: ScreenCaptureService
+    private let ocrProvider: VisionOCRProvider
+    private var activeCaptureSession: SelectionCaptureSession?
 
     init(
         settingsStore: SettingsStore,
         credentialStore: ProviderCredentialStore,
         hotkeyService: GlobalHotkeyService,
         overlayCoordinator: SelectionOverlayCoordinator,
-        searchService: SearchService
+        searchService: SearchService,
+        screenCaptureService: ScreenCaptureService,
+        ocrProvider: VisionOCRProvider
     ) {
         self.settingsStore = settingsStore
         self.credentialStore = credentialStore
         self.hotkeyService = hotkeyService
         self.overlayCoordinator = overlayCoordinator
         self.searchService = searchService
+        self.screenCaptureService = screenCaptureService
+        self.ocrProvider = ocrProvider
     }
 
     func start() {
@@ -48,29 +57,92 @@ final class AppModel {
     }
 
     func beginSelection() {
-        guard !overlayCoordinator.isPresented else {
+        guard !overlayCoordinator.isPresented, !isSelectionPreparationInFlight else {
             return
         }
 
+        Task {
+            await prepareSelection()
+        }
+    }
+
+    private func prepareSelection() async {
+        guard !overlayCoordinator.isPresented, !isSelectionPreparationInFlight else {
+            return
+        }
+
+        isSelectionPreparationInFlight = true
+        activeCaptureSession = nil
         lastErrorMessage = nil
+        lastRecognizedText = ""
         lastTranslatedText = ""
-        statusMessage = "Selection mode active."
+        statusMessage = "Capturing screens..."
 
-        overlayCoordinator.presentSelection(
-            onSelection: { [weak self] selection in
-                guard let self else { return }
+        defer {
+            isSelectionPreparationInFlight = false
+        }
 
-                self.lastSelectionSummary = selection.summary
-                self.statusMessage = "Selection stored. Screen capture and OCR are the next slice."
-                AppLogger.app.info("Selection captured: \(selection.summary)")
-            },
-            onCancel: { [weak self] in
-                guard let self else { return }
+        do {
+            let captureSession = try await screenCaptureService.captureSelectionSession()
+            activeCaptureSession = captureSession
+            statusMessage = "Selection mode active."
 
-                self.statusMessage = "Selection cancelled."
-                AppLogger.app.info("Selection cancelled.")
+            overlayCoordinator.presentSelection(
+                snapshots: captureSession.snapshots,
+                onSelection: { [weak self] selection in
+                    guard let self else { return }
+
+                    Task {
+                        await self.handleSelection(selection)
+                    }
+                },
+                onCancel: { [weak self] in
+                    guard let self else { return }
+
+                    self.activeCaptureSession = nil
+                    self.statusMessage = "Selection cancelled."
+                    AppLogger.app.info("Selection cancelled.")
+                }
+            )
+        } catch {
+            lastErrorMessage = error.localizedDescription
+            statusMessage = "Screen capture failed."
+            AppLogger.app.error("Screen capture failed: \(error.localizedDescription)")
+        }
+    }
+
+    private func handleSelection(_ selection: ScreenSelection) async {
+        lastSelectionSummary = selection.summary
+        lastErrorMessage = nil
+        isOCRInFlight = true
+        statusMessage = "Running OCR..."
+
+        defer {
+            isOCRInFlight = false
+            activeCaptureSession = nil
+        }
+
+        do {
+            let image = try await imageForSelection(selection)
+            let result = try await ocrProvider.extractText(from: image)
+            let text = result.combinedText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            guard !text.isEmpty else {
+                lastRecognizedText = ""
+                statusMessage = "No text recognized in the selected area."
+                return
             }
-        )
+
+            lastRecognizedText = text
+            lastTranslatedText = ""
+            statusMessage = "Recognized \(result.lines.count) text item(s)."
+            AppLogger.app.info("OCR completed with \(result.lines.count) lines.")
+        } catch {
+            lastRecognizedText = ""
+            lastErrorMessage = error.localizedDescription
+            statusMessage = "OCR failed."
+            AppLogger.app.error("OCR failed: \(error.localizedDescription)")
+        }
     }
 
     func loadClipboardText() {
@@ -133,6 +205,14 @@ final class AppModel {
 
     private var currentTextForActions: String {
         lastRecognizedText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func imageForSelection(_ selection: ScreenSelection) async throws -> CGImage {
+        if let image = activeCaptureSession?.croppedImage(for: selection) {
+            return image
+        }
+
+        return try await screenCaptureService.captureImage(in: selection.rectInScreenCoordinates)
     }
 
     private func translateWithConfiguredProvider(text: String) async throws -> TranslationResponse {

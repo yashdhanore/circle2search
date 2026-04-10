@@ -4,6 +4,8 @@ struct MenuBarMenuView: View {
     let appModel: AppModel
 
     var body: some View {
+        let isBusy = appModel.isSelectionPreparationInFlight || appModel.isOCRInFlight
+
         VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("CircleToSearch")
@@ -18,9 +20,13 @@ struct MenuBarMenuView: View {
                 Button {
                     appModel.beginSelection()
                 } label: {
-                    Label("Start Selection", systemImage: "viewfinder")
+                    Label(
+                        appModel.isSelectionPreparationInFlight ? "Capturing..." : "Start Selection",
+                        systemImage: "viewfinder"
+                    )
                 }
                 .buttonStyle(.borderedProminent)
+                .disabled(isBusy)
 
                 Button {
                     appModel.loadClipboardText()
@@ -28,6 +34,7 @@ struct MenuBarMenuView: View {
                     Label("Load Clipboard", systemImage: "doc.on.clipboard")
                 }
                 .buttonStyle(.bordered)
+                .disabled(appModel.isSelectionPreparationInFlight)
             }
 
             HStack(spacing: 10) {
@@ -36,7 +43,7 @@ struct MenuBarMenuView: View {
                 } label: {
                     Label("Search", systemImage: "magnifyingglass")
                 }
-                .disabled(appModel.lastRecognizedText.isEmpty)
+                .disabled(appModel.lastRecognizedText.isEmpty || isBusy)
 
                 Button {
                     Task {
@@ -48,7 +55,7 @@ struct MenuBarMenuView: View {
                         systemImage: "globe"
                     )
                 }
-                .disabled(appModel.lastRecognizedText.isEmpty || appModel.isTranslationInFlight)
+                .disabled(appModel.lastRecognizedText.isEmpty || appModel.isTranslationInFlight || isBusy)
             }
 
             Divider()
@@ -62,7 +69,7 @@ struct MenuBarMenuView: View {
                 detailBlock(
                     title: "Current Text",
                     body: appModel.lastRecognizedText.isEmpty
-                        ? "No OCR text yet. Use clipboard text to exercise search and translation while capture is being wired."
+                        ? "No OCR text recognized yet. Start a selection or load text from the clipboard."
                         : appModel.lastRecognizedText
                 )
 

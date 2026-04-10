@@ -10,6 +10,7 @@ final class SelectionOverlayCoordinator {
     private var cancelHandler: (() -> Void)?
 
     func presentSelection(
+        snapshots: [CapturedDisplaySnapshot],
         onSelection: @escaping (ScreenSelection) -> Void,
         onCancel: @escaping () -> Void
     ) {
@@ -24,9 +25,14 @@ final class SelectionOverlayCoordinator {
         NSApp.activate(ignoringOtherApps: true)
 
         let screens = NSScreen.screens
+        let snapshotsByDisplayID = Dictionary(
+            uniqueKeysWithValues: snapshots.map { ($0.displayID, $0) }
+        )
+
         panelControllers = screens.map { screen in
             SelectionOverlayPanelController(
                 screen: screen,
+                snapshot: snapshotsByDisplayID[screen.displayID],
                 onSelection: { [weak self] selection in
                     self?.complete(with: selection)
                 },
@@ -66,6 +72,7 @@ private final class SelectionOverlayPanelController {
 
     init(
         screen: NSScreen,
+        snapshot: CapturedDisplaySnapshot?,
         onSelection: @escaping (ScreenSelection) -> Void,
         onCancel: @escaping () -> Void
     ) {
@@ -88,6 +95,8 @@ private final class SelectionOverlayPanelController {
 
         let rootView = SelectionOverlayView(
             screenFrame: screen.frame,
+            backgroundImage: snapshot?.image,
+            imageScale: snapshot?.pointPixelScale ?? max(screen.backingScaleFactor, 1),
             onSelection: { rectInScreenCoordinates in
                 onSelection(
                     ScreenSelection(
@@ -130,15 +139,5 @@ private final class SelectionOverlayPanel: NSPanel {
 
     override func cancelOperation(_ sender: Any?) {
         cancelHandler?()
-    }
-}
-
-private extension NSScreen {
-    var displayID: CGDirectDisplayID {
-        guard let value = deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else {
-            return 0
-        }
-
-        return CGDirectDisplayID(value.uint32Value)
     }
 }

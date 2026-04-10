@@ -16,16 +16,17 @@ This scaffold includes:
 - a `MenuBarExtra` app shell
 - a settings window
 - a Carbon-backed global hotkey
-- a multi-display AppKit overlay coordinator
-- provider/config plumbing for local OCR plus Opper-backed translation
+- a `ScreenCaptureKit`-backed frozen multi-display selection flow
+- local `Vision` OCR for the selected region
+- provider/config plumbing for Opper-backed translation
 - a project-local `build_and_run.sh` entrypoint
 
 The next implementation slice is:
 
-1. freeze the screen with `ScreenCaptureKit`
-2. crop the selected region
-3. run `Vision` OCR on the crop
-4. connect the OCR result to the existing search and translation actions
+1. refine the screenshot crop path and overlay polish
+2. add translation result presentation near the selected area
+3. add Apple Translation as a local provider option
+4. add searchable history and shortcut customization
 
 ## Run
 

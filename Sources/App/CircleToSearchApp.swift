@@ -15,7 +15,9 @@ struct CircleToSearchApp: App {
             credentialStore: credentialStore,
             hotkeyService: GlobalHotkeyService(),
             overlayCoordinator: SelectionOverlayCoordinator(),
-            searchService: SearchService()
+            searchService: SearchService(),
+            screenCaptureService: ScreenCaptureService(),
+            ocrProvider: VisionOCRProvider()
         )
 
         _appModel = State(initialValue: appModel)

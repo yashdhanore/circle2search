@@ -2,6 +2,8 @@ import SwiftUI
 
 struct SelectionOverlayView: View {
     let screenFrame: CGRect
+    let backgroundImage: CGImage?
+    let imageScale: CGFloat
     let onSelection: (CGRect) -> Void
     let onCancel: () -> Void
 
@@ -11,15 +13,18 @@ struct SelectionOverlayView: View {
     var body: some View {
         GeometryReader { proxy in
             ZStack(alignment: .topLeading) {
-                Color.black.opacity(0.35)
+                backgroundLayer
                     .ignoresSafeArea()
+
+                dimmingLayer
 
                 if let selectionRect = selectionRect {
                     selectionShape(in: selectionRect)
-                } else {
-                    instructionCard
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                 }
+
+                instructionCard
+                    .opacity(selectionRect == nil ? 1 : 0)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             }
             .contentShape(Rectangle())
             .gesture(
@@ -44,6 +49,31 @@ struct SelectionOverlayView: View {
                 onCancel()
             }
         }
+    }
+
+    @ViewBuilder
+    private var backgroundLayer: some View {
+        if let backgroundImage {
+            Image(decorative: backgroundImage, scale: imageScale, orientation: .up)
+                .resizable()
+                .interpolation(.high)
+        } else {
+            Color.black
+        }
+    }
+
+    private var dimmingLayer: some View {
+        ZStack {
+            Color.black.opacity(0.38)
+
+            if let selectionRect {
+                Rectangle()
+                    .frame(width: selectionRect.width, height: selectionRect.height)
+                    .position(x: selectionRect.midX, y: selectionRect.midY)
+                    .blendMode(.destinationOut)
+            }
+        }
+        .compositingGroup()
     }
 
     private var selectionRect: CGRect? {
