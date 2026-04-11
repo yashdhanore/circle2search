@@ -4,6 +4,7 @@ import AppKit
 final class StatusItemController: NSObject {
     private let statusItem: NSStatusItem
     private let onPrimaryAction: @MainActor () -> Void
+    private let onOpenSettings: @MainActor () -> Void
 
     private lazy var menu: NSMenu = {
         let menu = NSMenu()
@@ -37,8 +38,12 @@ final class StatusItemController: NSObject {
         return menu
     }()
 
-    init(onPrimaryAction: @escaping @MainActor () -> Void) {
+    init(
+        onPrimaryAction: @escaping @MainActor () -> Void,
+        onOpenSettings: @escaping @MainActor () -> Void
+    ) {
         self.onPrimaryAction = onPrimaryAction
+        self.onOpenSettings = onOpenSettings
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         super.init()
         configureStatusItem()
@@ -85,8 +90,9 @@ final class StatusItemController: NSObject {
 
     @objc
     private func openSettings() {
-        NSApp.activate(ignoringOtherApps: true)
-        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        Task { @MainActor in
+            onOpenSettings()
+        }
     }
 
     @objc

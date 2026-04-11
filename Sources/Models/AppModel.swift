@@ -17,6 +17,7 @@ final class AppModel {
     private let screenCaptureService: ScreenCaptureService
     private let ocrProvider: VisionOCRProvider
     private let textReplacementRenderer: TextReplacementRenderer
+    private let settingsWindowController: SettingsWindowController
     private var statusItemController: StatusItemController?
 
     init(
@@ -26,7 +27,8 @@ final class AppModel {
         overlayCoordinator: ScreenTranslationOverlayCoordinator,
         screenCaptureService: ScreenCaptureService,
         ocrProvider: VisionOCRProvider,
-        textReplacementRenderer: TextReplacementRenderer
+        textReplacementRenderer: TextReplacementRenderer,
+        settingsWindowController: SettingsWindowController
     ) {
         self.settingsStore = settingsStore
         self.credentialStore = credentialStore
@@ -35,6 +37,7 @@ final class AppModel {
         self.screenCaptureService = screenCaptureService
         self.ocrProvider = ocrProvider
         self.textReplacementRenderer = textReplacementRenderer
+        self.settingsWindowController = settingsWindowController
     }
 
     func start() {
@@ -43,9 +46,14 @@ final class AppModel {
         }
 
         if statusItemController == nil {
-            statusItemController = StatusItemController { [weak self] in
-                self?.beginFullScreenTranslateSession()
-            }
+            statusItemController = StatusItemController(
+                onPrimaryAction: { [weak self] in
+                    self?.beginFullScreenTranslateSession()
+                },
+                onOpenSettings: { [weak self] in
+                    self?.openSettings()
+                }
+            )
         }
 
         do {
@@ -101,6 +109,10 @@ final class AppModel {
         overlayCoordinator.dismiss()
         currentScreenSession = nil
         statusMessage = "Ready. Click the menu bar icon or press \(GlobalHotkeyService.defaultShortcutDescription)."
+    }
+
+    func openSettings() {
+        settingsWindowController.show(appModel: self)
     }
 
     private func prepareFullScreenTranslateSession() async {
