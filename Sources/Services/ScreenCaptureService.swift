@@ -6,7 +6,7 @@ import Foundation
 
 @MainActor
 struct ScreenCaptureService {
-    func captureSelectionSession() async throws -> SelectionCaptureSession {
+    func captureDisplayUnderCursor() async throws -> CapturedDisplaySnapshot {
         try ensureScreenCaptureAccess()
 
         let shareableContent = try await currentShareableContent()
@@ -14,43 +14,15 @@ struct ScreenCaptureService {
             $0.processID == ProcessInfo.processInfo.processIdentifier
         }
 
-        var snapshots: [CapturedDisplaySnapshot] = []
-        snapshots.reserveCapacity(NSScreen.screens.count)
-
-        for screen in NSScreen.screens {
-            let snapshot = try await captureDisplaySnapshot(
-                for: screen,
-                shareableContent: shareableContent,
-                excludedApplications: excludedApplications
-            )
-            snapshots.append(snapshot)
-        }
-
-        guard !snapshots.isEmpty else {
+        guard let screen = screenUnderCursor() else {
             throw ScreenCaptureError.noDisplaysAvailable
         }
 
-        return SelectionCaptureSession(snapshots: snapshots)
-    }
-
-    func captureImage(in rect: CGRect) async throws -> CGImage {
-        try ensureScreenCaptureAccess()
-
-        guard #available(macOS 15.2, *) else {
-            throw ScreenCaptureError.liveRectCaptureUnavailable
-        }
-
-        return try await withCheckedThrowingContinuation { continuation in
-            SCScreenshotManager.captureImage(in: rect) { image, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                } else if let image {
-                    continuation.resume(returning: image)
-                } else {
-                    continuation.resume(throwing: ScreenCaptureError.emptyImage)
-                }
-            }
-        }
+        return try await captureDisplaySnapshot(
+            for: screen,
+            shareableContent: shareableContent,
+            excludedApplications: excludedApplications
+        )
     }
 
     private func captureDisplaySnapshot(
@@ -64,8 +36,8 @@ struct ScreenCaptureService {
 
         let scale = max(screen.backingScaleFactor, 1)
         let configuration = SCStreamConfiguration()
-        configuration.width = size_t((CGFloat(display.width) * scale).rounded())
-        configuration.height = size_t((CGFloat(display.height) * scale).rounded())
+        configuration.width = size_t((screen.frame.width * scale).rounded())
+        configuration.height = size_t((screen.frame.height * scale).rounded())
         configuration.showsCursor = false
 
         let filter = SCContentFilter(
@@ -81,10 +53,18 @@ struct ScreenCaptureService {
 
         return CapturedDisplaySnapshot(
             displayID: display.displayID,
-            frameInScreenCoordinates: display.frame,
+            frameInScreenCoordinates: screen.frame,
             pointPixelScale: scale,
             image: image
         )
+    }
+
+    private func screenUnderCursor() -> NSScreen? {
+        let mouseLocation = NSEvent.mouseLocation
+
+        return NSScreen.screens.first(where: { $0.frame.contains(mouseLocation) })
+            ?? NSScreen.main
+            ?? NSScreen.screens.first
     }
 
     private func currentShareableContent() async throws -> SCShareableContent {
@@ -136,7 +116,6 @@ enum ScreenCaptureError: LocalizedError {
     case displayUnavailable(String)
     case unavailableContent
     case emptyImage
-    case liveRectCaptureUnavailable
 
     var errorDescription: String? {
         switch self {
@@ -150,8 +129,6 @@ enum ScreenCaptureError: LocalizedError {
             return "ScreenCaptureKit did not return shareable screen content."
         case .emptyImage:
             return "ScreenCaptureKit returned an empty image."
-        case .liveRectCaptureUnavailable:
-            return "Live rectangular capture requires macOS 15.2 or newer."
         }
     }
 }

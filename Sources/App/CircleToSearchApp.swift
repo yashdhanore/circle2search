@@ -14,10 +14,10 @@ struct CircleToSearchApp: App {
             settingsStore: settingsStore,
             credentialStore: credentialStore,
             hotkeyService: GlobalHotkeyService(),
-            overlayCoordinator: SelectionOverlayCoordinator(),
-            searchService: SearchService(),
+            overlayCoordinator: ScreenTranslationOverlayCoordinator(),
             screenCaptureService: ScreenCaptureService(),
-            ocrProvider: VisionOCRProvider()
+            ocrProvider: VisionOCRProvider(),
+            textReplacementRenderer: TextReplacementRenderer()
         )
 
         _appModel = State(initialValue: appModel)
@@ -28,12 +28,6 @@ struct CircleToSearchApp: App {
     }
 
     var body: some Scene {
-        MenuBarExtra("Circle to Search", systemImage: "magnifyingglass.circle") {
-            MenuBarMenuView(appModel: appModel)
-                .frame(width: 320)
-        }
-        .menuBarExtraStyle(.window)
-
         Settings {
             SettingsView(appModel: appModel)
                 .frame(width: 520)

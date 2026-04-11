@@ -8,21 +8,7 @@ struct SettingsView: View {
             Section("Shortcut") {
                 LabeledContent("Global Shortcut", value: GlobalHotkeyService.defaultShortcutDescription)
 
-                Text("The first milestone keeps the shortcut fixed while capture and OCR are being wired.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            }
-
-            Section("Search") {
-                TextField(
-                    "https://www.google.com/search?q={query}",
-                    text: Binding(
-                        get: { appModel.settingsStore.searchEngineTemplate },
-                        set: { appModel.settingsStore.searchEngineTemplate = $0 }
-                    )
-                )
-
-                Text("Include a {query} token in the template.")
+                Text("Use the shortcut or the menu bar icon to open instant translate mode for the visible screen.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }

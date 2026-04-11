@@ -11,9 +11,59 @@ struct TranslationResponse {
     let detectedSourceLanguage: String?
 }
 
+struct BatchTranslationItem: Identifiable, Sendable {
+    let id: UUID
+    let text: String
+}
+
+struct BatchTranslationRequest: Sendable {
+    let items: [BatchTranslationItem]
+    let targetLanguage: String
+}
+
+struct BatchTranslationResponseItem: Identifiable, Sendable {
+    let id: UUID
+    let text: String
+    let detectedSourceLanguage: String?
+}
+
+struct BatchTranslationResponse: Sendable {
+    let items: [BatchTranslationResponseItem]
+    let providerName: String
+}
+
 protocol TextTranslationProvider {
     var providerName: String { get }
     func translate(_ request: TranslationRequest) async throws -> TranslationResponse
+}
+
+extension TextTranslationProvider {
+    func translateBatch(_ request: BatchTranslationRequest) async throws -> BatchTranslationResponse {
+        var translatedItems: [BatchTranslationResponseItem] = []
+        translatedItems.reserveCapacity(request.items.count)
+
+        for item in request.items {
+            let response = try await translate(
+                TranslationRequest(
+                    text: item.text,
+                    targetLanguage: request.targetLanguage
+                )
+            )
+
+            translatedItems.append(
+                BatchTranslationResponseItem(
+                    id: item.id,
+                    text: response.text,
+                    detectedSourceLanguage: response.detectedSourceLanguage
+                )
+            )
+        }
+
+        return BatchTranslationResponse(
+            items: translatedItems,
+            providerName: providerName
+        )
+    }
 }
 
 struct OpperTranslationProvider: TextTranslationProvider {

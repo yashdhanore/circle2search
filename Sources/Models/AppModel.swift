@@ -7,43 +7,45 @@ final class AppModel {
     let settingsStore: SettingsStore
     let credentialStore: ProviderCredentialStore
 
-    var statusMessage = "Ready. Press \(GlobalHotkeyService.defaultShortcutDescription)."
+    var statusMessage = "Ready. Click the menu bar icon or press \(GlobalHotkeyService.defaultShortcutDescription)."
     var lastErrorMessage: String?
-    var lastSelectionSummary = "No screen selection yet."
-    var lastRecognizedText = ""
-    var lastTranslatedText = ""
-    var isTranslationInFlight = false
-    var isSelectionPreparationInFlight = false
-    var isOCRInFlight = false
+    var currentScreenSession: ScreenTranslationSession?
+    var isSessionPreparationInFlight = false
 
     private let hotkeyService: GlobalHotkeyService
-    private let overlayCoordinator: SelectionOverlayCoordinator
-    private let searchService: SearchService
+    private let overlayCoordinator: ScreenTranslationOverlayCoordinator
     private let screenCaptureService: ScreenCaptureService
     private let ocrProvider: VisionOCRProvider
-    private var activeCaptureSession: SelectionCaptureSession?
+    private let textReplacementRenderer: TextReplacementRenderer
+    private var statusItemController: StatusItemController?
 
     init(
         settingsStore: SettingsStore,
         credentialStore: ProviderCredentialStore,
         hotkeyService: GlobalHotkeyService,
-        overlayCoordinator: SelectionOverlayCoordinator,
-        searchService: SearchService,
+        overlayCoordinator: ScreenTranslationOverlayCoordinator,
         screenCaptureService: ScreenCaptureService,
-        ocrProvider: VisionOCRProvider
+        ocrProvider: VisionOCRProvider,
+        textReplacementRenderer: TextReplacementRenderer
     ) {
         self.settingsStore = settingsStore
         self.credentialStore = credentialStore
         self.hotkeyService = hotkeyService
         self.overlayCoordinator = overlayCoordinator
-        self.searchService = searchService
         self.screenCaptureService = screenCaptureService
         self.ocrProvider = ocrProvider
+        self.textReplacementRenderer = textReplacementRenderer
     }
 
     func start() {
         hotkeyService.onTrigger = { [weak self] in
-            self?.beginSelection()
+            self?.beginFullScreenTranslateSession()
+        }
+
+        if statusItemController == nil {
+            statusItemController = StatusItemController { [weak self] in
+                self?.beginFullScreenTranslateSession()
+            }
         }
 
         do {
@@ -56,54 +58,79 @@ final class AppModel {
         }
     }
 
-    func beginSelection() {
-        guard !overlayCoordinator.isPresented, !isSelectionPreparationInFlight else {
+    func beginFullScreenTranslateSession() {
+        guard currentScreenSession == nil, !overlayCoordinator.isPresented, !isSessionPreparationInFlight else {
             return
         }
 
         Task {
-            await prepareSelection()
+            await prepareFullScreenTranslateSession()
         }
     }
 
-    private func prepareSelection() async {
-        guard !overlayCoordinator.isPresented, !isSelectionPreparationInFlight else {
+    func activateTranslatedScreen() {
+        guard let session = currentScreenSession else {
             return
         }
 
-        isSelectionPreparationInFlight = true
-        activeCaptureSession = nil
+        if session.hasRenderedTranslation {
+            var updatedSession = session
+            updatedSession.displayMode = .translated
+            updatedSession.errorMessage = nil
+            currentScreenSession = updatedSession
+            statusMessage = "Showing translated overlay."
+            return
+        }
+
+        Task {
+            await translateCurrentScreen()
+        }
+    }
+
+    func showOriginalScreen() {
+        guard var session = currentScreenSession, session.hasRenderedTranslation else {
+            return
+        }
+
+        session.displayMode = .original
+        currentScreenSession = session
+        statusMessage = "Showing the original screen."
+    }
+
+    func closeCurrentScreenSession() {
+        overlayCoordinator.dismiss()
+        currentScreenSession = nil
+        statusMessage = "Ready. Click the menu bar icon or press \(GlobalHotkeyService.defaultShortcutDescription)."
+    }
+
+    private func prepareFullScreenTranslateSession() async {
+        guard currentScreenSession == nil, !overlayCoordinator.isPresented, !isSessionPreparationInFlight else {
+            return
+        }
+
+        isSessionPreparationInFlight = true
         lastErrorMessage = nil
-        lastRecognizedText = ""
-        lastTranslatedText = ""
-        statusMessage = "Capturing screens..."
+        statusMessage = "Capturing the visible screen..."
 
         defer {
-            isSelectionPreparationInFlight = false
+            isSessionPreparationInFlight = false
         }
 
         do {
-            let captureSession = try await screenCaptureService.captureSelectionSession()
-            activeCaptureSession = captureSession
-            statusMessage = "Selection mode active."
+            let snapshot = try await screenCaptureService.captureDisplayUnderCursor()
+            let session = ScreenTranslationSession(snapshot: snapshot)
 
-            overlayCoordinator.presentSelection(
-                snapshots: captureSession.snapshots,
-                onSelection: { [weak self] selection in
-                    guard let self else { return }
-
-                    Task {
-                        await self.handleSelection(selection)
-                    }
-                },
-                onCancel: { [weak self] in
-                    guard let self else { return }
-
-                    self.activeCaptureSession = nil
-                    self.statusMessage = "Selection cancelled."
-                    AppLogger.app.info("Selection cancelled.")
+            currentScreenSession = session
+            overlayCoordinator.present(
+                snapshot: snapshot,
+                appModel: self,
+                onClose: { [weak self] in
+                    self?.closeCurrentScreenSession()
                 }
             )
+
+            statusMessage = "Analyzing the visible screen..."
+            await analyzeCurrentScreen(sessionID: session.id, snapshot: snapshot)
         } catch {
             lastErrorMessage = error.localizedDescription
             statusMessage = "Screen capture failed."
@@ -111,132 +138,235 @@ final class AppModel {
         }
     }
 
-    private func handleSelection(_ selection: ScreenSelection) async {
-        lastSelectionSummary = selection.summary
-        lastErrorMessage = nil
-        isOCRInFlight = true
-        statusMessage = "Running OCR..."
-
-        defer {
-            isOCRInFlight = false
-            activeCaptureSession = nil
-        }
-
+    private func analyzeCurrentScreen(
+        sessionID: UUID,
+        snapshot: CapturedDisplaySnapshot
+    ) async {
         do {
-            let image = try await imageForSelection(selection)
-            let result = try await ocrProvider.extractText(from: image)
-            let text = result.combinedText.trimmingCharacters(in: .whitespacesAndNewlines)
+            let result = try await ocrProvider.extractText(from: snapshot.image)
+            let recognizedBlocks = makeRecognizedBlocks(from: result, snapshot: snapshot)
 
-            guard !text.isEmpty else {
-                lastRecognizedText = ""
-                statusMessage = "No text recognized in the selected area."
+            guard var session = validatedSession(withID: sessionID) else {
                 return
             }
 
-            lastRecognizedText = text
-            lastTranslatedText = ""
-            statusMessage = "Recognized \(result.lines.count) text item(s)."
-            AppLogger.app.info("OCR completed with \(result.lines.count) lines.")
+            session.phase = .ready
+            session.recognizedBlocks = recognizedBlocks
+            session.errorMessage = recognizedBlocks.isEmpty
+                ? "No text was recognized on the visible screen."
+                : nil
+
+            currentScreenSession = session
+            lastErrorMessage = session.errorMessage
+            statusMessage = recognizedBlocks.isEmpty
+                ? "No text recognized on the visible screen."
+                : "Ready to translate \(recognizedBlocks.count) text blocks."
+
+            if session.queuedTranslateRequest {
+                await translateCurrentScreen(for: sessionID)
+            }
         } catch {
-            lastRecognizedText = ""
+            guard var session = validatedSession(withID: sessionID) else {
+                return
+            }
+
+            session.phase = .ready
+            session.errorMessage = error.localizedDescription
+            currentScreenSession = session
             lastErrorMessage = error.localizedDescription
-            statusMessage = "OCR failed."
+            statusMessage = "Text recognition failed."
             AppLogger.app.error("OCR failed: \(error.localizedDescription)")
         }
     }
 
-    func loadClipboardText() {
-        guard let value = NSPasteboard.general.string(forType: .string)?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-            !value.isEmpty else {
-            lastErrorMessage = "Clipboard does not currently contain text."
+    private func translateCurrentScreen() async {
+        guard let session = currentScreenSession else {
             return
         }
 
-        lastRecognizedText = value
-        lastTranslatedText = ""
-        lastErrorMessage = nil
-        statusMessage = "Loaded text from the clipboard."
+        await translateCurrentScreen(for: session.id)
     }
 
-    func searchCurrentText() {
+    private func translateCurrentScreen(for sessionID: UUID) async {
+        guard var session = validatedSession(withID: sessionID) else {
+            return
+        }
+
+        if session.phase == .translating {
+            return
+        }
+
+        if session.hasRenderedTranslation {
+            session.displayMode = .translated
+            session.errorMessage = nil
+            currentScreenSession = session
+            statusMessage = "Showing translated overlay."
+            return
+        }
+
+        if session.phase == .analyzing {
+            session.queuedTranslateRequest = true
+            session.errorMessage = nil
+            currentScreenSession = session
+            statusMessage = "Finishing text recognition before translation."
+            return
+        }
+
+        guard session.hasRecognizedText else {
+            session.errorMessage = "No text was recognized on the visible screen."
+            currentScreenSession = session
+            lastErrorMessage = session.errorMessage
+            statusMessage = "No text recognized on the visible screen."
+            return
+        }
+
+        session.phase = .translating
+        session.errorMessage = nil
+        currentScreenSession = session
+        lastErrorMessage = nil
+        statusMessage = "Translating the visible screen..."
+
         do {
-            try searchService.search(
-                query: currentTextForActions,
-                template: settingsStore.searchEngineTemplate
+            let translatedResponse = try await translateWithConfiguredProvider(
+                blocks: session.recognizedBlocks
             )
-            lastErrorMessage = nil
-            statusMessage = "Opened search in the default browser."
+
+            guard var activeSession = validatedSession(withID: sessionID) else {
+                return
+            }
+
+            let translatedBlocksByID = Dictionary(
+                uniqueKeysWithValues: translatedResponse.items.map { item in
+                    (
+                        item.id,
+                        item.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                    )
+                }
+            )
+
+            let translatedBlocks = activeSession.recognizedBlocks.compactMap { block -> TranslatedTextBlock? in
+                guard
+                    let translatedText = translatedBlocksByID[block.id],
+                    !translatedText.isEmpty
+                else {
+                    return nil
+                }
+
+                return TranslatedTextBlock(
+                    id: block.id,
+                    sourceText: block.sourceText,
+                    translatedText: translatedText,
+                    confidence: block.confidence,
+                    localRect: block.localRect,
+                    imageRect: block.imageRect
+                )
+            }
+
+            activeSession.renderedBlocks = textReplacementRenderer.render(
+                snapshot: activeSession.snapshot,
+                translatedBlocks: translatedBlocks
+            )
+            activeSession.phase = .translated
+            activeSession.displayMode = .translated
+            activeSession.queuedTranslateRequest = false
+            activeSession.errorMessage = activeSession.renderedBlocks.isEmpty
+                ? "The translation completed, but nothing could be drawn in place."
+                : nil
+
+            currentScreenSession = activeSession
+            lastErrorMessage = activeSession.errorMessage
+            statusMessage = activeSession.renderedBlocks.isEmpty
+                ? "Translation completed without an overlay result."
+                : "Translated the visible screen with \(translatedResponse.providerName)."
         } catch {
-            lastErrorMessage = error.localizedDescription
-            statusMessage = "Search failed."
-        }
-    }
+            guard var activeSession = validatedSession(withID: sessionID) else {
+                return
+            }
 
-    func translateCurrentText() async {
-        guard !isTranslationInFlight else {
-            return
-        }
-
-        let text = currentTextForActions
-        guard !text.isEmpty else {
-            lastErrorMessage = "No text is available yet. Use clipboard text until OCR is wired."
-            return
-        }
-
-        isTranslationInFlight = true
-        lastErrorMessage = nil
-        statusMessage = "Translating..."
-
-        defer {
-            isTranslationInFlight = false
-        }
-
-        do {
-            let response = try await translateWithConfiguredProvider(text: text)
-
-            lastTranslatedText = response.text
-            statusMessage = "Translated with \(response.providerName)."
-        } catch {
+            activeSession.phase = .ready
+            activeSession.queuedTranslateRequest = false
+            activeSession.errorMessage = error.localizedDescription
+            currentScreenSession = activeSession
             lastErrorMessage = error.localizedDescription
             statusMessage = "Translation failed."
         }
     }
 
-    private var currentTextForActions: String {
-        lastRecognizedText.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
+    private func translateWithConfiguredProvider(
+        blocks: [RecognizedTextBlock]
+    ) async throws -> BatchTranslationResponse {
+        let batchRequest = BatchTranslationRequest(
+            items: blocks.map { block in
+                BatchTranslationItem(
+                    id: block.id,
+                    text: block.sourceText
+                )
+            },
+            targetLanguage: settingsStore.targetLanguage
+        )
 
-    private func imageForSelection(_ selection: ScreenSelection) async throws -> CGImage {
-        if let image = activeCaptureSession?.croppedImage(for: selection) {
-            return image
-        }
-
-        return try await screenCaptureService.captureImage(in: selection.rectInScreenCoordinates)
-    }
-
-    private func translateWithConfiguredProvider(text: String) async throws -> TranslationResponse {
         switch settingsStore.translationProvider {
         case .opper:
             let apiKey = credentialStore.opperAPIKey
                 .trimmingCharacters(in: .whitespacesAndNewlines)
 
             guard !apiKey.isEmpty else {
-                throw TranslationProviderError.missingAPIKey("Add an Opper API key in Settings before translating.")
+                throw TranslationProviderError.missingAPIKey(
+                    "Add an Opper API key in Settings before translating."
+                )
             }
 
             let provider = OpperTranslationProvider(
                 baseURL: settingsStore.opperBaseURL,
                 apiKey: apiKey
             )
-            return try await provider.translate(
-                .init(
-                    text: text,
-                    targetLanguage: settingsStore.targetLanguage
-                )
-            )
+
+            return try await provider.translateBatch(batchRequest)
         case .appleTranslation:
-            throw TranslationProviderError.unsupported("Apple Translation is planned but not wired in this first milestone.")
+            throw TranslationProviderError.unsupported(
+                "Apple Translation is not wired yet in this milestone."
+            )
+        }
+    }
+
+    private func validatedSession(withID sessionID: UUID) -> ScreenTranslationSession? {
+        guard let session = currentScreenSession, session.id == sessionID else {
+            return nil
+        }
+
+        return session
+    }
+
+    private func makeRecognizedBlocks(
+        from result: OCRResult,
+        snapshot: CapturedDisplaySnapshot
+    ) -> [RecognizedTextBlock] {
+        result.observations.compactMap { observation in
+            let sourceText = observation.text.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            guard !sourceText.isEmpty else {
+                return nil
+            }
+
+            let localRect = snapshot.localRect(for: observation.normalizedBoundingBox)
+            let imageRect = snapshot.imageRect(for: localRect)
+
+            guard
+                observation.confidence >= 0.2,
+                localRect.width >= 14,
+                localRect.height >= 8,
+                !imageRect.isNull
+            else {
+                return nil
+            }
+
+            return RecognizedTextBlock(
+                id: observation.id,
+                sourceText: sourceText,
+                confidence: observation.confidence,
+                localRect: localRect,
+                imageRect: imageRect
+            )
         }
     }
 }

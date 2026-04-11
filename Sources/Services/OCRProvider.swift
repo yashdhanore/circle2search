@@ -2,26 +2,26 @@
 import Foundation
 @preconcurrency import Vision
 
-struct OCRLine: Identifiable, Sendable {
+struct OCRObservation: Identifiable, Sendable {
     let id = UUID()
     let text: String
     let confidence: Float
-    let boundingBox: CGRect
+    let normalizedBoundingBox: CGRect
 }
 
 struct OCRResult: Sendable {
-    let lines: [OCRLine]
+    let observations: [OCRObservation]
 
     var combinedText: String {
-        lines.map(\.text).joined(separator: "\n")
+        observations.map(\.text).joined(separator: "\n")
     }
 }
 
-protocol OCRProvider {
+protocol OCRProvider: Sendable {
     func extractText(from image: CGImage) async throws -> OCRResult
 }
 
-struct VisionOCRProvider: OCRProvider {
+struct VisionOCRProvider: OCRProvider, Sendable {
     func extractText(from image: CGImage) async throws -> OCRResult {
         try await Task.detached(priority: .userInitiated) {
             let request = VNRecognizeTextRequest()
@@ -32,19 +32,45 @@ struct VisionOCRProvider: OCRProvider {
             try handler.perform([request])
 
             let observations = request.results ?? []
-            let lines = observations.compactMap { observation -> OCRLine? in
+            let extractedObservations = observations.compactMap { observation -> OCRObservation? in
                 guard let candidate = observation.topCandidates(1).first else {
                     return nil
                 }
 
-                return OCRLine(
-                    text: candidate.string,
+                let rawText = candidate.string
+                let trimmedText = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+                guard !trimmedText.isEmpty else {
+                    return nil
+                }
+
+                let normalizedBoundingBox: CGRect
+                let fullRange = rawText.startIndex..<rawText.endIndex
+
+                if let preciseBoundingBox = try? candidate.boundingBox(for: fullRange) {
+                    normalizedBoundingBox = preciseBoundingBox.boundingBox
+                } else {
+                    normalizedBoundingBox = observation.boundingBox
+                }
+
+                return OCRObservation(
+                    text: trimmedText,
                     confidence: candidate.confidence,
-                    boundingBox: observation.boundingBox
+                    normalizedBoundingBox: normalizedBoundingBox
                 )
             }
 
-            return OCRResult(lines: lines)
+            let orderedObservations = extractedObservations.sorted { lhs, rhs in
+                let verticalDelta = abs(lhs.normalizedBoundingBox.maxY - rhs.normalizedBoundingBox.maxY)
+
+                if verticalDelta > 0.02 {
+                    return lhs.normalizedBoundingBox.maxY > rhs.normalizedBoundingBox.maxY
+                }
+
+                return lhs.normalizedBoundingBox.minX < rhs.normalizedBoundingBox.minX
+            }
+
+            return OCRResult(observations: orderedObservations)
         }.value
     }
 }
