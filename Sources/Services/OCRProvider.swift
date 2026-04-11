@@ -24,6 +24,9 @@ protocol OCRProvider: Sendable {
 struct VisionOCRProvider: OCRProvider, Sendable {
     func extractText(from image: CGImage) async throws -> OCRResult {
         try await Task.detached(priority: .userInitiated) {
+            AppLogger.ocr.info(
+                "Starting Vision OCR for image \(image.width)x\(image.height)."
+            )
             let request = VNRecognizeTextRequest()
             request.recognitionLevel = .accurate
             request.usesLanguageCorrection = true
@@ -69,6 +72,10 @@ struct VisionOCRProvider: OCRProvider, Sendable {
 
                 return lhs.normalizedBoundingBox.minX < rhs.normalizedBoundingBox.minX
             }
+
+            AppLogger.ocr.info(
+                "Vision OCR completed with \(orderedObservations.count) ordered observation(s)."
+            )
 
             return OCRResult(observations: orderedObservations)
         }.value

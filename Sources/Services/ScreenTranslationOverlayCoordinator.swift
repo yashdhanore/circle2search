@@ -16,11 +16,18 @@ final class ScreenTranslationOverlayCoordinator {
         dismiss()
 
         guard let screen = targetScreen(for: snapshot.displayID) else {
+            AppLogger.overlay.error(
+                "Could not find a target screen for display ID \(snapshot.displayID)."
+            )
             return
         }
 
         closeHandler = onClose
         isPresented = true
+
+        AppLogger.overlay.info(
+            "Presenting translation overlay for display ID \(snapshot.displayID) at frame \(NSStringFromRect(screen.frame))."
+        )
 
         NSApp.activate(ignoringOtherApps: true)
 
@@ -37,6 +44,9 @@ final class ScreenTranslationOverlayCoordinator {
     }
 
     func dismiss() {
+        if isPresented {
+            AppLogger.overlay.info("Dismissing translation overlay.")
+        }
         panelController?.close()
         panelController = nil
         closeHandler = nil

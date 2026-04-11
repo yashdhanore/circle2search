@@ -7,6 +7,7 @@ import Foundation
 @MainActor
 struct ScreenCaptureService {
     func captureDisplayUnderCursor() async throws -> CapturedDisplaySnapshot {
+        AppLogger.capture.info("Starting capture for the display under the cursor.")
         try ensureScreenCaptureAccess()
 
         let shareableContent = try await currentShareableContent()
@@ -17,6 +18,10 @@ struct ScreenCaptureService {
         guard let screen = screenUnderCursor() else {
             throw ScreenCaptureError.noDisplaysAvailable
         }
+
+        AppLogger.capture.debug(
+            "Selected display '\(screen.localizedName)' with frame \(NSStringFromRect(screen.frame))."
+        )
 
         return try await captureDisplaySnapshot(
             for: screen,
@@ -51,6 +56,10 @@ struct ScreenCaptureService {
             configuration: configuration
         )
 
+        AppLogger.capture.info(
+            "Captured display ID \(display.displayID) at \(image.width)x\(image.height) pixels."
+        )
+
         return CapturedDisplaySnapshot(
             displayID: display.displayID,
             frameInScreenCoordinates: screen.frame,
@@ -73,6 +82,10 @@ struct ScreenCaptureService {
         guard !shareableContent.displays.isEmpty else {
             throw ScreenCaptureError.unavailableContent
         }
+
+        AppLogger.capture.debug(
+            "Shareable content returned \(shareableContent.displays.count) display(s), \(shareableContent.windows.count) window(s), and \(shareableContent.applications.count) application(s)."
+        )
 
         return shareableContent
     }
@@ -99,14 +112,19 @@ struct ScreenCaptureService {
 
     private func ensureScreenCaptureAccess() throws {
         if CGPreflightScreenCaptureAccess() {
+            AppLogger.capture.debug("Screen capture access already granted.")
             return
         }
 
+        AppLogger.capture.info("Requesting screen capture access from macOS.")
         _ = CGRequestScreenCaptureAccess()
 
         guard CGPreflightScreenCaptureAccess() else {
+            AppLogger.capture.error("Screen capture access was denied or not active yet.")
             throw ScreenCaptureError.permissionDenied
         }
+
+        AppLogger.capture.info("Screen capture access granted.")
     }
 }
 

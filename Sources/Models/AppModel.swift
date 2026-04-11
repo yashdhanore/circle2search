@@ -68,6 +68,7 @@ final class AppModel {
 
     func beginFullScreenTranslateSession() {
         guard currentScreenSession == nil, !overlayCoordinator.isPresented, !isSessionPreparationInFlight else {
+            AppLogger.app.debug("Ignored translate-session trigger because a session is already active or preparing.")
             return
         }
 
@@ -78,6 +79,7 @@ final class AppModel {
 
     func activateTranslatedScreen() {
         guard let session = currentScreenSession else {
+            AppLogger.translation.debug("Ignored translate action because no screen session is active.")
             return
         }
 
@@ -87,6 +89,7 @@ final class AppModel {
             updatedSession.errorMessage = nil
             currentScreenSession = updatedSession
             statusMessage = "Showing translated overlay."
+            AppLogger.translation.info("Reused cached translated overlay for session \(session.id.uuidString).")
             return
         }
 
@@ -97,21 +100,27 @@ final class AppModel {
 
     func showOriginalScreen() {
         guard var session = currentScreenSession, session.hasRenderedTranslation else {
+            AppLogger.overlay.debug("Ignored request to show original screen because no translated overlay is active.")
             return
         }
 
         session.displayMode = .original
         currentScreenSession = session
         statusMessage = "Showing the original screen."
+        AppLogger.overlay.info("Showing original frozen screen for session \(session.id.uuidString).")
     }
 
     func closeCurrentScreenSession() {
+        if let session = currentScreenSession {
+            AppLogger.overlay.info("Closing screen translation session \(session.id.uuidString).")
+        }
         overlayCoordinator.dismiss()
         currentScreenSession = nil
         statusMessage = "Ready. Click the menu bar icon or press \(GlobalHotkeyService.defaultShortcutDescription)."
     }
 
     func openSettings() {
+        AppLogger.settings.info("Opening settings window.")
         settingsWindowController.show(appModel: self)
     }
 
@@ -133,6 +142,9 @@ final class AppModel {
             let session = ScreenTranslationSession(snapshot: snapshot)
 
             currentScreenSession = session
+            AppLogger.app.info(
+                "Prepared screen session \(session.id.uuidString) for display ID \(snapshot.displayID)."
+            )
             overlayCoordinator.present(
                 snapshot: snapshot,
                 appModel: self,
@@ -146,7 +158,7 @@ final class AppModel {
         } catch {
             lastErrorMessage = error.localizedDescription
             statusMessage = "Screen capture failed."
-            AppLogger.app.error("Screen capture failed: \(error.localizedDescription)")
+            AppLogger.capture.error("Screen capture failed: \(error.localizedDescription)")
         }
     }
 
@@ -159,6 +171,9 @@ final class AppModel {
             let recognizedBlocks = makeRecognizedBlocks(from: result, snapshot: snapshot)
 
             guard var session = validatedSession(withID: sessionID) else {
+                AppLogger.ocr.debug(
+                    "Discarded OCR result because session \(sessionID.uuidString) is no longer active."
+                )
                 return
             }
 
@@ -173,12 +188,21 @@ final class AppModel {
             statusMessage = recognizedBlocks.isEmpty
                 ? "No text recognized on the visible screen."
                 : "Ready to translate \(recognizedBlocks.count) text blocks."
+            AppLogger.ocr.info(
+                "OCR is ready for session \(sessionID.uuidString) with \(recognizedBlocks.count) renderable block(s)."
+            )
 
             if session.queuedTranslateRequest {
+                AppLogger.translation.info(
+                    "Starting queued translation immediately after OCR for session \(sessionID.uuidString)."
+                )
                 await translateCurrentScreen(for: sessionID)
             }
         } catch {
             guard var session = validatedSession(withID: sessionID) else {
+                AppLogger.ocr.debug(
+                    "Discarded OCR failure because session \(sessionID.uuidString) is no longer active."
+                )
                 return
             }
 
@@ -187,7 +211,7 @@ final class AppModel {
             currentScreenSession = session
             lastErrorMessage = error.localizedDescription
             statusMessage = "Text recognition failed."
-            AppLogger.app.error("OCR failed: \(error.localizedDescription)")
+            AppLogger.ocr.error("OCR failed: \(error.localizedDescription)")
         }
     }
 
@@ -201,10 +225,16 @@ final class AppModel {
 
     private func translateCurrentScreen(for sessionID: UUID) async {
         guard var session = validatedSession(withID: sessionID) else {
+            AppLogger.translation.debug(
+                "Ignored translation request because session \(sessionID.uuidString) is no longer active."
+            )
             return
         }
 
         if session.phase == .translating {
+            AppLogger.translation.debug(
+                "Ignored translation request because session \(sessionID.uuidString) is already translating."
+            )
             return
         }
 
@@ -213,6 +243,7 @@ final class AppModel {
             session.errorMessage = nil
             currentScreenSession = session
             statusMessage = "Showing translated overlay."
+            AppLogger.translation.info("Showing cached translated overlay for session \(sessionID.uuidString).")
             return
         }
 
@@ -221,6 +252,9 @@ final class AppModel {
             session.errorMessage = nil
             currentScreenSession = session
             statusMessage = "Finishing text recognition before translation."
+            AppLogger.translation.info(
+                "Queued translation until OCR finishes for session \(sessionID.uuidString)."
+            )
             return
         }
 
@@ -237,8 +271,8 @@ final class AppModel {
         currentScreenSession = session
         lastErrorMessage = nil
         statusMessage = "Translating the visible screen..."
-        AppLogger.app.info(
-            "Starting translation for \(session.recognizedBlocks.count) recognized block(s)."
+        AppLogger.translation.info(
+            "Starting translation for session \(sessionID.uuidString) with \(session.recognizedBlocks.count) recognized block(s)."
         )
 
         do {
@@ -247,6 +281,9 @@ final class AppModel {
             )
 
             guard var activeSession = validatedSession(withID: sessionID) else {
+                AppLogger.translation.debug(
+                    "Discarded translation response because session \(sessionID.uuidString) is no longer active."
+                )
                 return
             }
 
@@ -293,11 +330,14 @@ final class AppModel {
             statusMessage = activeSession.renderedBlocks.isEmpty
                 ? "Translation completed without an overlay result."
                 : "Translated the visible screen with \(translatedResponse.providerName)."
-            AppLogger.app.info(
-                "Translation finished with \(activeSession.renderedBlocks.count) renderable block(s)."
+            AppLogger.translation.info(
+                "Translation finished for session \(sessionID.uuidString) with \(activeSession.renderedBlocks.count) renderable block(s)."
             )
         } catch {
             guard var activeSession = validatedSession(withID: sessionID) else {
+                AppLogger.translation.debug(
+                    "Discarded translation failure because session \(sessionID.uuidString) is no longer active."
+                )
                 return
             }
 
@@ -307,7 +347,7 @@ final class AppModel {
             currentScreenSession = activeSession
             lastErrorMessage = error.localizedDescription
             statusMessage = "Translation failed."
-            AppLogger.app.error("Translation failed: \(error.localizedDescription)")
+            AppLogger.translation.error("Translation failed: \(error.localizedDescription)")
         }
     }
 
@@ -337,7 +377,10 @@ final class AppModel {
 
             let provider = OpperTranslationProvider(
                 baseURL: settingsStore.opperBaseURL,
-                apiKey: apiKey
+                apiKey: apiKey,
+                model: settingsStore.opperModel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    ? "openai/gpt-5.4-nano"
+                    : settingsStore.opperModel.trimmingCharacters(in: .whitespacesAndNewlines)
             )
 
             return try await provider.translateBatch(batchRequest)

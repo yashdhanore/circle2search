@@ -69,10 +69,77 @@ extension TextTranslationProvider {
 struct OpperTranslationProvider: TextTranslationProvider {
     let baseURL: String
     let apiKey: String
+    let model: String
 
     var providerName: String { "Opper" }
+    private let preferredBatchSize = 16
 
     func translateBatch(_ request: BatchTranslationRequest) async throws -> BatchTranslationResponse {
+        let chunks = request.items.chunked(into: preferredBatchSize)
+        var allItems: [BatchTranslationResponseItem] = []
+        allItems.reserveCapacity(request.items.count)
+
+        for (index, chunk) in chunks.enumerated() {
+            AppLogger.translation.info(
+                "Submitting Opper translation chunk \(index + 1)/\(chunks.count) with \(chunk.count) block(s) using model \(model)."
+            )
+
+            let translatedChunk = try await executeBatchChunk(
+                items: chunk,
+                targetLanguage: request.targetLanguage
+            )
+            allItems.append(contentsOf: translatedChunk)
+        }
+
+        AppLogger.translation.info(
+            "Completed batched Opper translation with \(allItems.count) translated block(s)."
+        )
+
+        return BatchTranslationResponse(
+            items: allItems,
+            providerName: providerName
+        )
+    }
+
+    private func executeBatchChunk(
+        items: [BatchTranslationItem],
+        targetLanguage: String
+    ) async throws -> [BatchTranslationResponseItem] {
+        do {
+            return try await performBatchChunk(
+                items: items,
+                targetLanguage: targetLanguage
+            )
+        } catch let error as TranslationProviderError {
+            if case let .httpFailure(statusCode, _) = error, statusCode == 500, items.count > 1 {
+                let midpoint = items.count / 2
+                let leftItems = Array(items[..<midpoint])
+                let rightItems = Array(items[midpoint...])
+
+                AppLogger.translation.error(
+                    "Opper returned HTTP 500 for \(items.count) block(s). Retrying smaller chunks: \(leftItems.count) and \(rightItems.count)."
+                )
+
+                let leftResult = try await executeBatchChunk(
+                    items: leftItems,
+                    targetLanguage: targetLanguage
+                )
+                let rightResult = try await executeBatchChunk(
+                    items: rightItems,
+                    targetLanguage: targetLanguage
+                )
+
+                return leftResult + rightResult
+            }
+
+            throw error
+        }
+    }
+
+    private func performBatchChunk(
+        items: [BatchTranslationItem],
+        targetLanguage: String
+    ) async throws -> [BatchTranslationResponseItem] {
         guard let baseURL = URL(string: baseURL) else {
             throw TranslationProviderError.invalidBaseURL
         }
@@ -81,9 +148,10 @@ struct OpperTranslationProvider: TextTranslationProvider {
             .appendingPathComponent("v3")
             .appendingPathComponent("call")
 
-        AppLogger.app.info(
-            "Submitting batched Opper translation request for \(request.items.count) block(s)."
+        AppLogger.translation.info(
+            "Submitting batched Opper translation request for \(items.count) block(s)."
         )
+        AppLogger.translation.debug("Opper batch endpoint: \(endpoint.absoluteString)")
 
         var urlRequest = URLRequest(url: endpoint)
         urlRequest.httpMethod = "POST"
@@ -92,15 +160,16 @@ struct OpperTranslationProvider: TextTranslationProvider {
         urlRequest.httpBody = try JSONEncoder().encode(
             BatchCallRequest(
                 name: "circle_to_search_translate_batch",
+                model: model,
                 instructions: """
-                Translate each item's text into \(request.targetLanguage).
+                Translate each item's text into \(targetLanguage).
                 Return one translation result per input item.
                 Preserve each item's id exactly as provided.
                 Keep the same ordering when practical.
                 Return only the translated text for each item.
                 """,
                 input: BatchInput(
-                    items: request.items.map { item in
+                    items: items.map { item in
                         BatchInputItem(
                             id: item.id.uuidString,
                             text: item.text
@@ -135,14 +204,11 @@ struct OpperTranslationProvider: TextTranslationProvider {
             )
         }
 
-        AppLogger.app.info(
+        AppLogger.translation.info(
             "Completed batched Opper translation request with \(translationItems.count) translated block(s)."
         )
 
-        return BatchTranslationResponse(
-            items: translationItems,
-            providerName: providerName
-        )
+        return translationItems
     }
 
     func translate(_ request: TranslationRequest) async throws -> TranslationResponse {
@@ -161,6 +227,7 @@ struct OpperTranslationProvider: TextTranslationProvider {
         urlRequest.httpBody = try JSONEncoder().encode(
             CallRequest(
                 name: "circle_to_search_translate",
+                model: model,
                 instructions: """
                 Translate the input text into \(request.targetLanguage).
                 Preserve the tone and formatting where practical.
@@ -194,6 +261,9 @@ struct OpperTranslationProvider: TextTranslationProvider {
 
         guard (200..<300).contains(httpResponse.statusCode) else {
             let body = String(data: data, encoding: .utf8) ?? "<empty body>"
+            AppLogger.translation.error(
+                "Opper returned HTTP \(httpResponse.statusCode) with body: \(body)"
+            )
             throw TranslationProviderError.httpFailure(
                 statusCode: httpResponse.statusCode,
                 message: body
@@ -201,7 +271,28 @@ struct OpperTranslationProvider: TextTranslationProvider {
         }
 
         let decoded = try JSONDecoder().decode(CallResponse.self, from: data)
+        AppLogger.translation.debug("Decoded Opper response successfully.")
         return decoded.data ?? decoded.output
+    }
+}
+
+private extension Array {
+    func chunked(into size: Int) -> [[Element]] {
+        guard size > 0 else {
+            return isEmpty ? [] : [self]
+        }
+
+        var chunks: [[Element]] = []
+        chunks.reserveCapacity((count + size - 1) / size)
+
+        var index = startIndex
+        while index < endIndex {
+            let nextIndex = self.index(index, offsetBy: size, limitedBy: endIndex) ?? endIndex
+            chunks.append(Array(self[index..<nextIndex]))
+            index = nextIndex
+        }
+
+        return chunks
     }
 }
 
@@ -230,12 +321,14 @@ enum TranslationProviderError: LocalizedError {
 
 private struct CallRequest: Encodable {
     let name: String
+    let model: String
     let instructions: String
     let input: String
     let outputSchema = OutputSchema()
 
     enum CodingKeys: String, CodingKey {
         case name
+        case model
         case instructions
         case input
         case outputSchema = "output_schema"
@@ -244,6 +337,7 @@ private struct CallRequest: Encodable {
 
 private struct BatchCallRequest: Encodable {
     let name: String
+    let model: String
     let instructions: String
     let inputSchema = BatchInputSchema()
     let outputSchema = BatchOutputSchema()
@@ -251,6 +345,7 @@ private struct BatchCallRequest: Encodable {
 
     enum CodingKeys: String, CodingKey {
         case name
+        case model
         case instructions
         case inputSchema = "input_schema"
         case outputSchema = "output_schema"

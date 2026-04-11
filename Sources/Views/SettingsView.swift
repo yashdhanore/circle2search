@@ -49,6 +49,14 @@ struct SettingsView: View {
                     )
                 )
 
+                TextField(
+                    "openai/gpt-5.4-nano",
+                    text: Binding(
+                        get: { appModel.settingsStore.opperModel },
+                        set: { appModel.settingsStore.opperModel = $0 }
+                    )
+                )
+
                 SecureField(
                     "OPPER_API_KEY",
                     text: Binding(
@@ -58,6 +66,10 @@ struct SettingsView: View {
                 )
 
                 Text("The API key is stored in the macOS Keychain. The app calls Opper directly and does not require a proxy backend in this version.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+
+                Text("Default model: openai/gpt-5.4-nano. Try openai/gpt-5.4-mini if nano is too weak.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
 

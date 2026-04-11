@@ -7,6 +7,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
 
     func show(appModel: AppModel) {
         if let window = windowController?.window {
+            AppLogger.settings.info("Reusing existing settings window.")
             refreshRootView(of: window, appModel: appModel)
             NSApp.activate(ignoringOtherApps: true)
             window.makeKeyAndOrderFront(nil)
@@ -29,6 +30,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         let controller = NSWindowController(window: window)
         windowController = controller
 
+        AppLogger.settings.info("Created settings window.")
         NSApp.activate(ignoringOtherApps: true)
         controller.showWindow(nil)
         window.makeKeyAndOrderFront(nil)
@@ -40,6 +42,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         }
 
         if window === windowController?.window {
+            AppLogger.settings.debug("Hiding settings window.")
             window.orderOut(nil)
         }
     }

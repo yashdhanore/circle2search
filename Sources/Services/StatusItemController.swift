@@ -72,6 +72,7 @@ final class StatusItemController: NSObject {
             || currentEvent?.modifierFlags.contains(.control) == true
 
         if isSecondaryClick {
+            AppLogger.menuBar.info("Opened status item context menu.")
             statusItem.menu = menu
             statusItem.button?.performClick(nil)
             statusItem.menu = nil
@@ -83,6 +84,7 @@ final class StatusItemController: NSObject {
 
     @objc
     private func performPrimaryAction() {
+        AppLogger.menuBar.info("Triggered visible-screen translation from status item.")
         Task { @MainActor in
             onPrimaryAction()
         }
@@ -90,6 +92,7 @@ final class StatusItemController: NSObject {
 
     @objc
     private func openSettings() {
+        AppLogger.settings.info("Opening settings from status item.")
         Task { @MainActor in
             onOpenSettings()
         }
