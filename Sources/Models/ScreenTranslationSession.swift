@@ -6,6 +6,7 @@ import Foundation
 struct CapturedDisplaySnapshot {
     let displayID: CGDirectDisplayID
     let frameInScreenCoordinates: CGRect
+    let visibleFrameInScreenCoordinates: CGRect
     let pointPixelScale: CGFloat
     let image: CGImage
 
@@ -41,6 +42,25 @@ struct CapturedDisplaySnapshot {
         )
 
         return imageRect.integral.intersection(bounds)
+    }
+
+    var visibleContentLocalRect: CGRect {
+        localRect(forScreenRect: visibleFrameInScreenCoordinates)
+    }
+
+    private func localRect(forScreenRect screenRect: CGRect) -> CGRect {
+        let clampedRect = screenRect.intersection(frameInScreenCoordinates)
+
+        guard !clampedRect.isNull else {
+            return .null
+        }
+
+        return CGRect(
+            x: clampedRect.minX - frameInScreenCoordinates.minX,
+            y: frameInScreenCoordinates.maxY - clampedRect.maxY,
+            width: clampedRect.width,
+            height: clampedRect.height
+        ).integral
     }
 }
 

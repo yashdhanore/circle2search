@@ -12,6 +12,11 @@ struct ScreenTranslationOverlayView: View {
                             .frame(width: proxy.size.width, height: proxy.size.height)
                             .clipped()
 
+                        ActiveCaptureEdgeGlowView(
+                            isBusy: session.phase == .analyzing || session.phase == .translating
+                        )
+                        .allowsHitTesting(false)
+
                         if session.displayMode == .translated {
                             translatedLayer(session.renderedBlocks)
                                 .allowsHitTesting(false)
@@ -125,6 +130,119 @@ struct ScreenTranslationOverlayView: View {
         }
 
         return .secondary
+    }
+}
+
+private struct ActiveCaptureEdgeGlowView: View {
+    let isBusy: Bool
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isPulsing = false
+
+    private let glowColor = Color(red: 0.30, green: 0.81, blue: 0.98)
+    private let innerStrokeColor = Color.white.opacity(0.72)
+
+    var body: some View {
+        GeometryReader { proxy in
+            let cornerRadius = min(max(min(proxy.size.width, proxy.size.height) * 0.018, 18), 28)
+            let pulseDuration = isBusy ? 1.1 : 1.8
+
+            ZStack {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .strokeBorder(innerStrokeColor, lineWidth: 1.6)
+                    .padding(9)
+
+                RoundedRectangle(cornerRadius: cornerRadius + 1, style: .continuous)
+                    .strokeBorder(glowColor.opacity(glowOpacity), lineWidth: glowLineWidth)
+                    .blur(radius: glowBlurRadius)
+                    .padding(6)
+
+                RoundedRectangle(cornerRadius: cornerRadius + 2, style: .continuous)
+                    .strokeBorder(glowColor.opacity(secondaryGlowOpacity), lineWidth: 2.2)
+                    .padding(7)
+            }
+            .scaleEffect(glowScale)
+            .opacity(glowContainerOpacity)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .onAppear {
+                guard !reduceMotion else {
+                    return
+                }
+
+                withAnimation(.easeInOut(duration: pulseDuration).repeatForever(autoreverses: true)) {
+                    isPulsing = true
+                }
+            }
+            .onChange(of: reduceMotion) { _, newValue in
+                if newValue {
+                    isPulsing = false
+                } else {
+                    withAnimation(.easeInOut(duration: pulseDuration).repeatForever(autoreverses: true)) {
+                        isPulsing = true
+                    }
+                }
+            }
+            .onChange(of: isBusy) { _, _ in
+                guard !reduceMotion else {
+                    return
+                }
+
+                isPulsing = false
+                withAnimation(.easeInOut(duration: pulseDuration).repeatForever(autoreverses: true)) {
+                    isPulsing = true
+                }
+            }
+        }
+        .ignoresSafeArea()
+    }
+
+    private var glowOpacity: Double {
+        if reduceMotion {
+            return isBusy ? 0.58 : 0.42
+        }
+
+        return isPulsing ? (isBusy ? 0.92 : 0.70) : (isBusy ? 0.42 : 0.34)
+    }
+
+    private var secondaryGlowOpacity: Double {
+        if reduceMotion {
+            return 0.44
+        }
+
+        return isPulsing ? 0.68 : 0.30
+    }
+
+    private var glowLineWidth: CGFloat {
+        if reduceMotion {
+            return isBusy ? 9 : 7
+        }
+
+        return isPulsing ? (isBusy ? 11 : 8.5) : (isBusy ? 7.5 : 6.5)
+    }
+
+    private var glowBlurRadius: CGFloat {
+        if reduceMotion {
+            return isBusy ? 20 : 16
+        }
+
+        return isPulsing ? (isBusy ? 24 : 18) : (isBusy ? 16 : 14)
+    }
+
+    private var glowScale: CGFloat {
+        guard !reduceMotion else {
+            return 1
+        }
+
+        return isPulsing ? 1.0025 : 0.998
+    }
+
+    private var glowContainerOpacity: Double {
+        guard !reduceMotion else {
+            return 1
+        }
+
+        return isPulsing ? 1 : 0.9
     }
 }
 

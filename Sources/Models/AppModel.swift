@@ -403,7 +403,9 @@ final class AppModel {
         from result: OCRResult,
         snapshot: CapturedDisplaySnapshot
     ) -> [RecognizedTextBlock] {
-        result.observations.compactMap { observation in
+        let visibleContentRect = snapshot.visibleContentLocalRect
+
+        return result.observations.compactMap { observation -> RecognizedTextBlock? in
             let sourceText = observation.text.trimmingCharacters(in: .whitespacesAndNewlines)
 
             guard !sourceText.isEmpty else {
@@ -411,12 +413,25 @@ final class AppModel {
             }
 
             let localRect = snapshot.localRect(for: observation.normalizedBoundingBox)
-            let imageRect = snapshot.imageRect(for: localRect)
+            let clippedLocalRect = localRect.intersection(visibleContentRect).integral
+
+            guard !clippedLocalRect.isNull else {
+                return nil
+            }
+
+            let originalArea = max(localRect.width * localRect.height, 1)
+            let visibleArea = clippedLocalRect.width * clippedLocalRect.height
+
+            guard visibleArea / originalArea >= 0.7 else {
+                return nil
+            }
+
+            let imageRect = snapshot.imageRect(for: clippedLocalRect)
 
             guard
                 observation.confidence >= 0.2,
-                localRect.width >= 14,
-                localRect.height >= 8,
+                clippedLocalRect.width >= 14,
+                clippedLocalRect.height >= 8,
                 !imageRect.isNull
             else {
                 return nil
@@ -426,7 +441,7 @@ final class AppModel {
                 id: observation.id,
                 sourceText: sourceText,
                 confidence: observation.confidence,
-                localRect: localRect,
+                localRect: clippedLocalRect,
                 imageRect: imageRect
             )
         }

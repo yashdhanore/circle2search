@@ -22,6 +22,9 @@ struct ScreenCaptureService {
         AppLogger.capture.debug(
             "Selected display '\(screen.localizedName)' with frame \(NSStringFromRect(screen.frame))."
         )
+        AppLogger.capture.debug(
+            "Visible content frame for '\(screen.localizedName)' is \(NSStringFromRect(screen.visibleFrame))."
+        )
 
         return try await captureDisplaySnapshot(
             for: screen,
@@ -63,6 +66,7 @@ struct ScreenCaptureService {
         return CapturedDisplaySnapshot(
             displayID: display.displayID,
             frameInScreenCoordinates: screen.frame,
+            visibleFrameInScreenCoordinates: screen.visibleFrame,
             pointPixelScale: scale,
             image: image
         )
