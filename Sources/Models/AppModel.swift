@@ -237,6 +237,9 @@ final class AppModel {
         currentScreenSession = session
         lastErrorMessage = nil
         statusMessage = "Translating the visible screen..."
+        AppLogger.app.info(
+            "Starting translation for \(session.recognizedBlocks.count) recognized block(s)."
+        )
 
         do {
             let translatedResponse = try await translateWithConfiguredProvider(
@@ -290,6 +293,9 @@ final class AppModel {
             statusMessage = activeSession.renderedBlocks.isEmpty
                 ? "Translation completed without an overlay result."
                 : "Translated the visible screen with \(translatedResponse.providerName)."
+            AppLogger.app.info(
+                "Translation finished with \(activeSession.renderedBlocks.count) renderable block(s)."
+            )
         } catch {
             guard var activeSession = validatedSession(withID: sessionID) else {
                 return
@@ -301,6 +307,7 @@ final class AppModel {
             currentScreenSession = activeSession
             lastErrorMessage = error.localizedDescription
             statusMessage = "Translation failed."
+            AppLogger.app.error("Translation failed: \(error.localizedDescription)")
         }
     }
 
