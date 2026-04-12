@@ -16,6 +16,10 @@ final class SettingsStore {
         didSet { persist(managedTranslationBaseURL, for: Keys.managedTranslationBaseURL) }
     }
 
+    var managedTranslationBearerToken: String {
+        didSet { persist(managedTranslationBearerToken, for: Keys.managedTranslationBearerToken) }
+    }
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         self.searchEngineTemplate = defaults.string(forKey: Keys.searchEngineTemplate)
@@ -25,6 +29,8 @@ final class SettingsStore {
             ?? defaultLanguage
         self.managedTranslationBaseURL = defaults.string(forKey: Keys.managedTranslationBaseURL)
             ?? "http://127.0.0.1:8080"
+        self.managedTranslationBearerToken = defaults.string(forKey: Keys.managedTranslationBearerToken)
+            ?? ""
     }
 
     private let defaults: UserDefaults
@@ -33,6 +39,7 @@ final class SettingsStore {
         static let searchEngineTemplate = "settings.searchEngineTemplate"
         static let targetLanguageCode = "settings.targetLanguageCode"
         static let managedTranslationBaseURL = "settings.managedTranslationBaseURL"
+        static let managedTranslationBearerToken = "settings.managedTranslationBearerToken"
     }
 
     private func persist(_ value: String, for key: String) {

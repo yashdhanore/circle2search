@@ -40,7 +40,7 @@ protocol TextTranslationProvider {
 
 struct ManagedTranslationProvider: TextTranslationProvider {
     let baseURL: String
-    let appToken: String? = nil
+    let appToken: String?
 
     var providerName: String { "Google Cloud NMT" }
 

@@ -44,6 +44,18 @@ struct SettingsView: View {
                 Text("Use a local URL while developing the backend. Production builds should point at the managed translation service.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
+
+                SecureField(
+                    "Bearer token (optional)",
+                    text: Binding(
+                        get: { appModel.settingsStore.managedTranslationBearerToken },
+                        set: { appModel.settingsStore.managedTranslationBearerToken = $0 }
+                    )
+                )
+
+                Text("Set this when the managed translation backend requires TRANSLATE_SHARED_SECRET.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
