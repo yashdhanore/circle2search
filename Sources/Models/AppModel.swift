@@ -364,7 +364,7 @@ final class AppModel {
             targetLanguageCode: settingsStore.targetLanguage.rawValue
         )
 
-        let connection = AppRuntimeConfiguration.managedTranslationConnection(
+        let connection = try AppRuntimeConfiguration.managedTranslationConnection(
             debugStore: managedTranslationDebugStore
         )
         let provider = ManagedTranslationProvider(

@@ -12,7 +12,8 @@
 
 This repo currently includes:
 
-- a SwiftPM macOS app target
+- a SwiftPM-first macOS app target
+- a real Xcode macOS app project at `CircleToSearch.xcodeproj`
 - a menu bar app shell with a dedicated settings window
 - a Carbon-backed global hotkey
 - a `ScreenCaptureKit` frozen-screen capture flow
@@ -27,6 +28,8 @@ This repo currently includes:
 ./script/build_and_run.sh
 ```
 
+For Xcode builds, open `CircleToSearch.xcodeproj` and run the `CircleToSearch` macOS app scheme.
+
 ## Run the backend
 
 ```bash
@@ -39,5 +42,6 @@ cp backend/.env.example backend/.env
 
 - The default global shortcut is `Control-Shift-Space`.
 - The app defaults to `http://127.0.0.1:8080` for the translation service during development.
+- Release builds read the managed translation endpoint from the Xcode build configuration via `ManagedTranslationBaseURL`.
 - The backend uses Google Cloud Translation Advanced v3 through the EU endpoint with `general/nmt`.
 - Google batch translation is not used here; the app needs synchronous low-latency translation, so the backend uses `translateText`.

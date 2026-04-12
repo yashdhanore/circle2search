@@ -5,6 +5,7 @@ MODE="${1:-run}"
 APP_NAME="CircleToSearch"
 BUNDLE_ID="com.circle2search.app"
 MIN_SYSTEM_VERSION="15.0"
+MANAGED_TRANSLATION_BASE_URL="http://127.0.0.1:8080"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
@@ -57,6 +58,8 @@ cat >"$INFO_PLIST" <<PLIST
   <string>$MIN_SYSTEM_VERSION</string>
   <key>LSUIElement</key>
   <true/>
+  <key>ManagedTranslationBaseURL</key>
+  <string>$MANAGED_TRANSLATION_BASE_URL</string>
   <key>NSPrincipalClass</key>
   <string>NSApplication</string>
   <key>NSScreenCaptureUsageDescription</key>

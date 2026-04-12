@@ -8,7 +8,7 @@ struct CircleToSearchApp: App {
     init() {
         let settingsStore = SettingsStore()
         let debugStore = ManagedTranslationDebugStore(
-            keychainStore: KeychainStore(serviceName: "com.circle2search.app")
+            keychainStore: KeychainStore(serviceName: AppRuntimeConfiguration.keychainServiceName)
         )
         let appModel = AppModel(
             settingsStore: settingsStore,

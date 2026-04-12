@@ -3,3 +3,6 @@
 .swiftpm/
 dist/
 .env
+DerivedData/
+*.xcuserstate
+xcuserdata/
