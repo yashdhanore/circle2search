@@ -5,12 +5,13 @@ set -euo pipefail
 PROJECT_ID="${PROJECT_ID:-your-gcp-project-id}"
 REGION="${REGION:-europe-west1}"
 SERVICE="${SERVICE:-circle2search-backend}"
-SECRET="${SECRET:-replace-with-long-random-secret}"
+SECRET="${SECRET:-}"
+EXPECTED_BUNDLE_ID="${EXPECTED_BUNDLE_ID:-com.circle2search.app}"
 # ------------------------------------
 
 if [[ "$PROJECT_ID" == "your-gcp-project-id" ]]; then
   echo "Set PROJECT_ID first. Example:"
-  echo '  PROJECT_ID="my-project" SECRET="$(openssl rand -hex 32)" ./script/deploy_cloud_run.sh'
+  echo '  PROJECT_ID="my-project" ./script/deploy_cloud_run.sh'
   exit 1
 fi
 
@@ -44,8 +45,12 @@ GOOGLE_TRANSLATE_ENDPOINT: "translate-eu.googleapis.com"
 GOOGLE_TRANSLATE_LOCATION: "$REGION"
 GOOGLE_TRANSLATE_MODEL: "general/nmt"
 GOOGLE_TRANSLATE_LABELS_JSON: '{"app":"circle2search","surface":"screen_translate"}'
-TRANSLATE_SHARED_SECRET: "$SECRET"
+APP_STORE_EXPECTED_BUNDLE_ID: "$EXPECTED_BUNDLE_ID"
 EOF
+
+if [[ -n "$SECRET" ]]; then
+  printf 'TRANSLATE_SHARED_SECRET: "%s"\n' "$SECRET" >>"$ENV_VARS_FILE"
+fi
 
 echo "Deploying Cloud Run service..."
 gcloud run deploy "$SERVICE" \
@@ -66,4 +71,8 @@ echo "Health check:"
 echo "  curl -i \"$SERVICE_URL/healthz\""
 echo
 echo "Translate test:"
-echo "  TRANSLATE_SHARED_SECRET=\"$SECRET\" ./script/test_translate_backend.sh \"$SERVICE_URL\" sv"
+if [[ -n "$SECRET" ]]; then
+  echo "  TRANSLATE_SHARED_SECRET=\"$SECRET\" ./script/test_translate_backend.sh \"$SERVICE_URL\" sv"
+else
+  echo "  Use the macOS app or provide APP_STORE_RECEIPT_B64 for auth testing."
+fi

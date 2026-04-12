@@ -54,7 +54,7 @@ struct SettingsView: View {
                     )
                 )
 
-                Text("The debug bearer token is stored in the macOS Keychain and is not shown in release builds.")
+                Text("Release builds authenticate with the App Store receipt automatically. The debug bearer token is stored in the macOS Keychain and is not shown in release builds.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
 

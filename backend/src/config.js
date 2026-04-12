@@ -4,6 +4,10 @@ const DEFAULT_MODEL = 'general/nmt';
 const DEFAULT_PORT = 8080;
 const DEFAULT_MAX_CODE_POINTS = 5000;
 const DEFAULT_MAX_BLOCKS = 100;
+const DEFAULT_EXPECTED_BUNDLE_ID = 'com.circle2search.app';
+const DEFAULT_RECEIPT_CACHE_TTL_SECONDS = 21600;
+const DEFAULT_RATE_LIMIT_WINDOW_SECONDS = 60;
+const DEFAULT_RATE_LIMIT_MAX_REQUESTS = 30;
 
 function loadConfig(env = process.env) {
   const projectId = (env.GOOGLE_CLOUD_PROJECT || env.GCLOUD_PROJECT || '').trim();
@@ -29,9 +33,25 @@ function loadConfig(env = process.env) {
 
   const defaultLabels = parseJsonObject(env.GOOGLE_TRANSLATE_LABELS_JSON, 'GOOGLE_TRANSLATE_LABELS_JSON');
   const sharedSecret = (env.TRANSLATE_SHARED_SECRET || '').trim();
+  const expectedBundleID = (env.APP_STORE_EXPECTED_BUNDLE_ID || DEFAULT_EXPECTED_BUNDLE_ID).trim();
   const port = parseInteger(env.PORT, DEFAULT_PORT, 'PORT');
   const maxCodePoints = parseInteger(env.TRANSLATE_MAX_CODE_POINTS, DEFAULT_MAX_CODE_POINTS, 'TRANSLATE_MAX_CODE_POINTS');
   const maxBlocks = parseInteger(env.TRANSLATE_MAX_BLOCKS, DEFAULT_MAX_BLOCKS, 'TRANSLATE_MAX_BLOCKS');
+  const receiptCacheTTLSeconds = parseInteger(
+    env.APP_STORE_RECEIPT_CACHE_TTL_SECONDS,
+    DEFAULT_RECEIPT_CACHE_TTL_SECONDS,
+    'APP_STORE_RECEIPT_CACHE_TTL_SECONDS'
+  );
+  const rateLimitWindowSeconds = parseInteger(
+    env.TRANSLATE_RATE_LIMIT_WINDOW_SECONDS,
+    DEFAULT_RATE_LIMIT_WINDOW_SECONDS,
+    'TRANSLATE_RATE_LIMIT_WINDOW_SECONDS'
+  );
+  const rateLimitMaxRequests = parseInteger(
+    env.TRANSLATE_RATE_LIMIT_MAX_REQUESTS,
+    DEFAULT_RATE_LIMIT_MAX_REQUESTS,
+    'TRANSLATE_RATE_LIMIT_MAX_REQUESTS'
+  );
   const requestBodyLimitBytes = parseInteger(
     env.TRANSLATE_MAX_REQUEST_BYTES,
     256 * 1024,
@@ -49,6 +69,10 @@ function loadConfig(env = process.env) {
     requestBodyLimitBytes,
     defaultLabels,
     sharedSecret,
+    expectedBundleID,
+    receiptCacheTTLSeconds,
+    rateLimitWindowSeconds,
+    rateLimitMaxRequests,
     googleAccessTokenOverride: (env.GOOGLE_ACCESS_TOKEN || '').trim(),
   };
 }

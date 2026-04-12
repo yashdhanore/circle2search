@@ -40,7 +40,7 @@ protocol TextTranslationProvider {
 
 struct ManagedTranslationProvider: TextTranslationProvider {
     let baseURL: String
-    let appToken: String?
+    let authorization: ManagedTranslationAuthorization?
 
     var providerName: String { "Google Cloud NMT" }
 
@@ -70,6 +70,10 @@ struct ManagedTranslationProvider: TextTranslationProvider {
             throw TranslationProviderError.invalidBaseURL
         }
 
+        guard authorization != nil else {
+            throw TranslationProviderError.missingAuthorization
+        }
+
         let requestBlocks = request.items.compactMap { item -> ManagedTranslationRequestBlock? in
             let trimmedText = item.text.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -95,8 +99,13 @@ struct ManagedTranslationProvider: TextTranslationProvider {
         urlRequest.httpMethod = "POST"
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        if let appToken, !appToken.isEmpty {
+        switch authorization {
+        case let .bearerToken(appToken):
             urlRequest.setValue("Bearer \(appToken)", forHTTPHeaderField: "Authorization")
+        case let .appStoreReceipt(receipt):
+            urlRequest.setValue(receipt, forHTTPHeaderField: "X-Circle-To-Search-App-Receipt")
+        case nil:
+            break
         }
 
         urlRequest.httpBody = try JSONEncoder().encode(
@@ -195,6 +204,7 @@ struct ManagedTranslationProvider: TextTranslationProvider {
 
 enum TranslationProviderError: LocalizedError {
     case invalidBaseURL
+    case missingAuthorization
     case invalidResponse(String)
     case httpFailure(statusCode: Int, message: String)
 
@@ -202,6 +212,8 @@ enum TranslationProviderError: LocalizedError {
         switch self {
         case .invalidBaseURL:
             return "The managed translation service URL is not valid."
+        case .missingAuthorization:
+            return "The managed translation service is not authorized. In debug builds, configure the debug bearer token or test with an App Store receipt-backed build."
         case let .invalidResponse(message):
             return message
         case let .httpFailure(statusCode, message):

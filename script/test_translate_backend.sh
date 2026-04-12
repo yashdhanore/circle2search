@@ -8,6 +8,8 @@ AUTH_HEADER=""
 
 if [[ -n "${TRANSLATE_SHARED_SECRET:-}" ]]; then
   AUTH_HEADER="Authorization: Bearer ${TRANSLATE_SHARED_SECRET}"
+elif [[ -n "${APP_STORE_RECEIPT_B64:-}" ]]; then
+  AUTH_HEADER="X-Circle-To-Search-App-Receipt: ${APP_STORE_RECEIPT_B64}"
 fi
 
 PAYLOAD_FILE="$(mktemp)"
@@ -34,6 +36,7 @@ if [[ -n "$AUTH_HEADER" ]]; then
     -H "$AUTH_HEADER" \
     --data @"$PAYLOAD_FILE"
 else
+  echo "warning: no auth header configured. Set TRANSLATE_SHARED_SECRET or APP_STORE_RECEIPT_B64." >&2
   curl -i "${BASE_URL%/}/v1/translate-screen" \
     -H "Content-Type: application/json" \
     --data @"$PAYLOAD_FILE"

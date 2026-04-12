@@ -16,5 +16,10 @@ if [[ -f "$BACKEND_DIR/.env" ]]; then
   set +a
 fi
 
+if [[ -z "${GOOGLE_CLOUD_PROJECT:-}" ]]; then
+  echo "GOOGLE_CLOUD_PROJECT must be set in backend/.env or the shell environment." >&2
+  exit 1
+fi
+
 cd "$BACKEND_DIR"
 exec npm start

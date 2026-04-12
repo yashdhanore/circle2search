@@ -3,11 +3,19 @@
 This document is the release and validation handoff for the Xcode-enabled machine.
 
 Current repo state:
-- The app is functional as a SwiftPM macOS menu bar utility.
+- The app is functional as a macOS menu bar utility.
 - Local OCR is on-device with Vision.
 - Translation goes through the managed Google Cloud Translation backend.
 - Debug-only backend URL and bearer token controls exist in Settings.
-- The app is not yet packaged for Mac App Store distribution.
+- A real Xcode project now exists in `CircleToSearch.xcodeproj`.
+- The app now has:
+  - an app target
+  - app icons in `Resources/Assets.xcassets`
+  - a target `Info.plist`
+  - an entitlements file
+  - a privacy manifest
+  - debug/release xcconfig files
+- The app is still not ready for App Store submission until archive-time validation and backend auth hardening are completed.
 
 This machine constraint is important:
 - The current development machine does not have usable Xcode access.
@@ -34,47 +42,76 @@ These parts are already in the right direction and should be preserved:
   - [backend/src/config.js](/Users/ydh0rs/Desktop/Personal/circle2search/backend/src/config.js)
   - [script/deploy_cloud_run.sh](/Users/ydh0rs/Desktop/Personal/circle2search/script/deploy_cloud_run.sh)
 
-## Must Fix Before App Store Release
+## What Is Already Correct
 
-### 1. Backend auth is not production-safe yet
+These parts are now in good shape and do not need to be redone on the Xcode machine:
 
-Current issue:
-- The backend accepts requests when `TRANSLATE_SHARED_SECRET` is unset.
-- This is implemented in [server.js](/Users/ydh0rs/Desktop/Personal/circle2search/backend/src/server.js) in `authorizeRequest`.
-- The deploy script still uses `--allow-unauthenticated` in [deploy_cloud_run.sh](/Users/ydh0rs/Desktop/Personal/circle2search/script/deploy_cloud_run.sh).
+- Xcode project exists:
+  - `CircleToSearch.xcodeproj`
+- App target is wired to the existing source tree.
+- App icon asset catalog exists:
+  - `Resources/Assets.xcassets`
+- Info plist exists and is target-managed:
+  - `Resources/CircleToSearch-Info.plist`
+- App Sandbox entitlements file exists:
+  - `Resources/CircleToSearch.entitlements`
+- Privacy manifest exists:
+  - `Resources/PrivacyInfo.xcprivacy`
+- Debug and release xcconfig files exist:
+  - `Config/Debug.xcconfig`
+  - `Config/Release.xcconfig`
+- Release backend URL is no longer hardcoded purely in Swift source.
+  - It is now provided via `ManagedTranslationBaseURL` in the bundle config.
 
-Why this matters:
-- A public Mac App Store client cannot safely hold a permanent shared backend secret.
-- If left as-is, the backend is a paid public proxy and is vulnerable to abuse and unexpected cost.
+## Must Validate Before App Store Release
 
-What needs to change:
-- Do not ship with fail-open backend auth.
-- Remove the path where missing `TRANSLATE_SHARED_SECRET` means allow all requests.
-- Replace static shared-secret auth with a stronger production mechanism.
+### 1. Validate the new closed backend auth model
 
-Minimum acceptable production direction:
-- Server-enforced auth for every request.
-- Rate limiting.
-- Per-install or per-account identity.
-- Short-lived server-issued tokens or server-side validation.
+Current state:
+- The backend is now fail-closed.
+- Release builds are expected to authenticate with an App Store receipt header.
+- Debug builds can authenticate with an explicit bearer token.
+- The backend also rate-limits authenticated subjects.
 
-Pragmatic near-term options:
-- If you need a short bridge to TestFlight only, require a server-side secret and keep distribution limited.
-- For actual App Store release, move to a real server-issued auth flow.
+Files:
+- [server.js](/Users/ydh0rs/Desktop/Personal/circle2search/backend/src/server.js)
+- [appStoreReceiptAuth.js](/Users/ydh0rs/Desktop/Personal/circle2search/backend/src/appStoreReceiptAuth.js)
+- [rateLimiter.js](/Users/ydh0rs/Desktop/Personal/circle2search/backend/src/rateLimiter.js)
+- [AppRuntimeConfiguration.swift](/Users/ydh0rs/Desktop/Personal/circle2search/Sources/Support/AppRuntimeConfiguration.swift)
+- [AppStoreReceiptProvider.swift](/Users/ydh0rs/Desktop/Personal/circle2search/Sources/Services/AppStoreReceiptProvider.swift)
 
-### 2. Release backend URL must not stay hardcoded in source
+Why this still needs testing:
+- The release auth path depends on a real App Store or TestFlight receipt being present in the archived app.
+- This machine cannot validate that path.
+- The backend now checks receipts against Apple production first and retries sandbox when needed, but that must be verified with a real signed build.
 
-Current issue:
-- The release backend URL is still a source constant in [AppRuntimeConfiguration.swift](/Users/ydh0rs/Desktop/Personal/circle2search/Sources/Support/AppRuntimeConfiguration.swift).
+What to validate on the Xcode machine:
+- release/archive builds send a valid receipt-backed request
+- the backend accepts that receipt
+- debug builds still work with the explicit debug token
+- unauthorized requests return 401
+- repeated requests hit the rate limiter only when expected
 
-Why this matters:
-- Release endpoint changes should be build configuration, not source edits.
-- App Store builds need deterministic release config.
+Pragmatic release note:
+- This is much stronger than the old shared-secret-only path.
+- For a free public app, you should still monitor cost and abuse patterns after launch.
+
+### 2. Release backend URL must be finalized and validated from bundle config
+
+Current state:
+- Release config is now improved.
+- The app reads `ManagedTranslationBaseURL` from the bundle configuration.
+- That value comes from the Xcode config files.
+
+Why this still needs work:
+- The release URL still needs to be validated in a real archive.
+- The production hostname must be the real deployed backend.
+- You need to confirm the release build actually reads the bundled value correctly.
 
 What needs to change on the Xcode machine:
-- Move the production endpoint into a release build setting or `Info.plist` value.
-- Keep debug override behavior for debug builds only.
-- Release builds should read a fixed, non-editable endpoint from bundle config.
+- Confirm the release value in `Config/Release.xcconfig`.
+- Confirm it flows into `Resources/CircleToSearch-Info.plist`.
+- Confirm the archived release app resolves that value correctly at runtime.
 
 Recommended shape:
 - `DEBUG`:
@@ -85,44 +122,35 @@ Recommended shape:
   - no debug override UI
   - no bearer token field in settings
 
-### 3. Real macOS app target and packaging path are still missing
+### 3. Real archive and distribution validation are still missing
 
-Current issue:
-- The repo is currently SwiftPM-first:
-  - [Package.swift](/Users/ydh0rs/Desktop/Personal/circle2search/Package.swift)
-- The local app bundle is synthesized by:
-  - [build_and_run.sh](/Users/ydh0rs/Desktop/Personal/circle2search/script/build_and_run.sh)
+Current state:
+- The repo now has a real Xcode app target.
+- The local shell build script still exists for development, but it is no longer the release path.
 
 Why this matters:
-- That script is good for local development only.
-- It does not define a real App Store archive path.
-- It does not solve entitlements, sandbox, privacy manifest integration, asset catalogs, or signing configuration.
+- Presence of the Xcode project is not enough.
+- Archive-time behavior is what matters for screen recording permissions, signing identity, sandbox behavior, and App Store readiness.
 
 What needs to be created on the Xcode machine:
-- A real macOS app target.
-- An asset catalog with app icons.
-- Build settings for versioning and bundle IDs.
-- App Sandbox entitlements.
-- Privacy manifest.
-- Archive and TestFlight path.
+- A successful archive.
+- A locally installed archived app.
+- A TestFlight or Organizer validation pass.
+- Final signing, provisioning, and App Store Connect validation.
 
 ## Xcode Machine Work Plan
 
-### Step 1. Create the Xcode app target
+### Step 1. Open and validate the Xcode project
 
 Goal:
-- Keep the existing source layout.
-- Wrap it in a real macOS app target.
+- Confirm the project opens cleanly and builds with full Xcode.
+- Validate that the app target is using the existing repo structure correctly.
 
 Recommended approach:
-- Create a new macOS App project in Xcode.
-- Reuse the existing `Sources/` files instead of rewriting the app.
-- Keep the folder structure:
-  - `Sources/App`
-  - `Sources/Models`
-  - `Sources/Services`
-  - `Sources/Support`
-  - `Sources/Views`
+- Open `CircleToSearch.xcodeproj`.
+- Confirm the `CircleToSearch` scheme is shared and selected.
+- Build Debug in Xcode.
+- Fix any machine-specific signing or toolchain issues there, not in the repo blindly.
 
 What to preserve:
 - `@main` app entry in [CircleToSearchApp.swift](/Users/ydh0rs/Desktop/Personal/circle2search/Sources/App/CircleToSearchApp.swift)
@@ -130,25 +158,30 @@ What to preserve:
 - settings window behavior
 - menu bar behavior
 
-### Step 2. Add required app resources
+### Step 2. Validate required app resources
 
 Required:
-- App icon set in an asset catalog.
+- App icon set in the asset catalog.
 - Real app target `Info.plist` values.
 
 Carry forward:
 - `LSUIElement = YES` because this is a menu bar utility.
-- screen recording usage description from the current script-built plist.
+- screen recording usage description from the target plist.
+- `ManagedTranslationBaseURL` from build config.
 
 Check:
 - icon renders correctly in the menu bar app bundle and archive
 - bundle identifier matches release plan
+- release and debug values resolve correctly
 
-### Step 3. Add entitlements and sandbox
+### Step 3. Validate entitlements and sandbox in Xcode
 
-This is required for Mac App Store distribution.
+This is now scaffolded in the repo, but must still be validated in an actual build.
 
-Add an entitlements file with at least:
+Current file:
+- `Resources/CircleToSearch.entitlements`
+
+Expected keys:
 - `com.apple.security.app-sandbox = true`
 - `com.apple.security.network.client = true`
 
@@ -161,22 +194,29 @@ Important:
 - do not guess extra entitlements unless they are needed
 - add the smallest set first, then test
 
-### Step 4. Add privacy manifest
+### Step 4. Validate privacy manifest
 
-Add `PrivacyInfo.xcprivacy` to the app target.
+Current file:
+- `Resources/PrivacyInfo.xcprivacy`
 
 At minimum, audit:
 - ScreenCaptureKit usage
 - network access
 - any required-reason APIs
 
-Do not leave this to the end. App Store upload review is stricter now.
+Current manifest covers:
+- `UserDefaults` accessed API reason
 
-### Step 5. Move release backend config into build settings
+Still verify in Xcode/App Store validation:
+- no additional required-reason APIs are flagged
+- the manifest is actually bundled in the app archive
+
+### Step 5. Validate debug and release configuration behavior
 
 Implement:
-- release endpoint in `Info.plist` or xcconfig
-- app reads release endpoint from bundle config
+- debug endpoint in `Config/Debug.xcconfig`
+- release endpoint in `Config/Release.xcconfig`
+- app reads `ManagedTranslationBaseURL` from `Info.plist`
 - debug override stays debug-only
 
 Validate:
@@ -184,7 +224,7 @@ Validate:
 - release builds never expose URL or token editing
 - release builds still translate correctly
 
-### Step 6. Build the archive path
+### Step 6. Build and validate the archive path
 
 Once the app target is stable:
 - create a signed archive
@@ -199,18 +239,18 @@ This matters because:
 
 ### Required backend changes
 
-Before App Store release:
-- remove fail-open auth behavior
-- stop relying on a static shared secret embedded in the app
-- add rate limiting
-- add quotas or abuse controls
-- decide how app identity is verified
+Implemented now:
+- fail-open auth removal
+- App Store receipt auth for release clients
+- debug bearer auth for local development
+- per-subject in-memory rate limiting
 
 Recommended backend follow-up:
 - keep Google Translation on Cloud Run
 - keep EU endpoint and NMT model
 - keep chunking near 5K code points
-- add auth enforcement and request limits before public release
+- monitor and tune rate limits before public release
+- decide whether you need a stronger long-term abuse-control layer than receipt validation alone
 
 ### Cloud Run review checklist
 
@@ -219,6 +259,7 @@ Check these on the server side:
 - endpoint remains `translate-eu.googleapis.com`
 - location remains EU
 - model remains `general/nmt`
+- `APP_STORE_EXPECTED_BUNDLE_ID` matches the final shipping bundle ID
 - logging avoids raw OCR text where possible
 - request size limits are enforced
 
@@ -238,6 +279,7 @@ Verify:
 - debug bearer token persists in Keychain
 - translation works against local backend
 - translation works against deployed backend
+- missing debug token fails with a clear local auth error
 
 ### B. Release build tests
 
@@ -247,6 +289,8 @@ Verify:
 - no bearer token editing is possible
 - release build resolves the fixed production endpoint
 - translation still works in release configuration
+- release build successfully reads the App Store receipt
+- release build sends receipt-backed auth without any user configuration
 
 ### C. Permission and identity tests
 
@@ -281,6 +325,8 @@ Verify:
 - backend timeout
 - backend 401
 - backend 500
+- backend 429 rate limit
+- invalid or missing receipt
 - empty OCR result
 - no network
 
@@ -318,6 +364,9 @@ These are not urgent blockers:
 - current local OCR strategy
 - current Google NMT request shape
 - current chunking model for synchronous translation
+- Xcode project structure
+- asset catalog setup
+- Info plist / xcconfig / entitlements / privacy manifest scaffold
 
 ## What Is Nice To Have But Not Required For First Release
 
@@ -331,17 +380,17 @@ These are not urgent blockers:
 
 1. Commit current repo state.
 2. Move to Xcode machine.
-3. Create app target and resources.
-4. Add entitlements and privacy manifest.
-5. Move release endpoint config out of source.
+3. Open the Xcode project and build Debug.
+4. Validate debug and release config behavior.
+5. Validate entitlements and privacy manifest in a real build.
 6. Harden backend auth.
-7. Archive locally and test.
+7. Archive locally and test the archived app.
 8. TestFlight for macOS.
 9. App Store Connect privacy + metadata.
 10. Release only after the archived build is stable.
 
 ## Most Important Remaining Risk
 
-The main remaining shipping risk is backend auth, not UI polish.
+The main remaining shipping risk is now archive-time validation of the receipt-backed auth path, not the basic app structure.
 
-If you only fix one thing before packaging, fix that first.
+If you only fix one thing before packaging, validate the archived release build against the production backend.

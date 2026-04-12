@@ -1,11 +1,18 @@
 const http = require('node:http');
 const crypto = require('node:crypto');
 const { loadConfig } = require('./config');
+const { AppStoreReceiptAuthorizer } = require('./appStoreReceiptAuth');
 const { chunkBlocks, normalizeLabels, summarizeBlocks } = require('./chunking');
 const { GoogleTranslateClient } = require('./googleTranslate');
+const { SlidingWindowRateLimiter } = require('./rateLimiter');
 
 const config = loadConfig();
 const translateClient = new GoogleTranslateClient(config);
+const receiptAuthorizer = new AppStoreReceiptAuthorizer(config);
+const rateLimiter = new SlidingWindowRateLimiter({
+  windowSeconds: config.rateLimitWindowSeconds,
+  maxRequests: config.rateLimitMaxRequests,
+});
 
 const server = http.createServer(async (req, res) => {
   const requestId = crypto.randomUUID();
@@ -21,8 +28,26 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    if (!authorizeRequest(req, config.sharedSecret)) {
-      sendJsonError(res, 401, 'unauthorized', 'Missing or invalid bearer token.', requestId);
+    const authorization = await authorizeRequest(req, config, receiptAuthorizer);
+    if (!authorization) {
+      sendJsonError(
+        res,
+        401,
+        'unauthorized',
+        'Missing or invalid authorization. Provide a valid App Store receipt or debug bearer token.',
+        requestId
+      );
+      return;
+    }
+
+    if (!rateLimiter.consume(authorization.subjectKey)) {
+      sendJsonError(
+        res,
+        429,
+        'rate_limited',
+        'Too many translation requests. Please wait and try again.',
+        requestId
+      );
       return;
     }
 
@@ -64,6 +89,8 @@ const server = http.createServer(async (req, res) => {
         codePoints: requestSummary.codePoints,
         targetLanguageCode,
         sourceLanguageCode: sourceLanguageCode || null,
+        authScheme: authorization.scheme,
+        authSubject: authorization.subjectDescription,
       })
     );
 
@@ -216,24 +243,30 @@ function canonicalizeLanguageCode(value) {
   }
 }
 
-function authorizeRequest(req, sharedSecret) {
-  if (!sharedSecret) {
-    return true;
-  }
-
+async function authorizeRequest(req, config, receiptAuthorizer) {
   const header = req.headers.authorization || req.headers['x-circle-to-search-secret'];
-  if (typeof header !== 'string' || !header.trim()) {
-    return false;
+  if (typeof header === 'string' && header.trim() && config.sharedSecret) {
+    const bearerPrefix = 'Bearer ';
+    const provided = header.startsWith(bearerPrefix) ? header.slice(bearerPrefix.length).trim() : header.trim();
+
+    if (
+      provided.length === config.sharedSecret.length &&
+      crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(config.sharedSecret))
+    ) {
+      return {
+        scheme: 'debug_bearer',
+        subjectKey: 'debug-shared-secret',
+        subjectDescription: 'debug-shared-secret',
+      };
+    }
   }
 
-  const bearerPrefix = 'Bearer ';
-  const provided = header.startsWith(bearerPrefix) ? header.slice(bearerPrefix.length).trim() : header.trim();
-
-  if (provided.length !== sharedSecret.length) {
-    return false;
+  const receiptHeader = req.headers['x-circle-to-search-app-receipt'];
+  if (typeof receiptHeader === 'string' && receiptHeader.trim()) {
+    return receiptAuthorizer.authorize(receiptHeader);
   }
 
-  return crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(sharedSecret));
+  return null;
 }
 
 function readBody(req, maxBytes) {

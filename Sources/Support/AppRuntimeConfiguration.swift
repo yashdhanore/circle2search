@@ -2,16 +2,27 @@ import Foundation
 
 struct ManagedTranslationConnection {
     let baseURL: String
-    let bearerToken: String?
+    let authorization: ManagedTranslationAuthorization?
+}
+
+enum ManagedTranslationAuthorization {
+    case bearerToken(String)
+    case appStoreReceipt(String)
 }
 
 enum RuntimeConfigurationError: LocalizedError {
     case missingManagedTranslationBaseURL
+    case missingAppStoreReceipt
+    case unreadableAppStoreReceipt(String)
 
     var errorDescription: String? {
         switch self {
         case .missingManagedTranslationBaseURL:
             return "The app bundle is missing its managed translation service URL."
+        case .missingAppStoreReceipt:
+            return "The release app is missing its App Store receipt."
+        case let .unreadableAppStoreReceipt(message):
+            return "The App Store receipt could not be loaded: \(message)"
         }
     }
 }
@@ -54,16 +65,26 @@ enum AppRuntimeConfiguration {
 
     @MainActor
     static func managedTranslationConnection(
-        debugStore: ManagedTranslationDebugStore?
+        debugStore: ManagedTranslationDebugStore?,
+        appStoreReceiptProvider: AppStoreReceiptProvider = AppStoreReceiptProvider()
     ) throws -> ManagedTranslationConnection {
         #if DEBUG
         let baseURL = debugStore?.baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
         let resolvedBaseURL = (baseURL?.isEmpty == false ? baseURL : nil) ?? debugManagedTranslationBaseURL
         let bearerToken = debugStore?.bearerToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        let authorization: ManagedTranslationAuthorization?
+
+        if let bearerToken, !bearerToken.isEmpty {
+            authorization = .bearerToken(bearerToken)
+        } else if let receipt = try? appStoreReceiptProvider.base64EncodedReceipt() {
+            authorization = .appStoreReceipt(receipt)
+        } else {
+            authorization = nil
+        }
 
         return ManagedTranslationConnection(
             baseURL: resolvedBaseURL,
-            bearerToken: bearerToken?.isEmpty == false ? bearerToken : nil
+            authorization: authorization
         )
         #else
         guard let bundledManagedTranslationBaseURL else {
@@ -73,9 +94,26 @@ enum AppRuntimeConfiguration {
             throw RuntimeConfigurationError.missingManagedTranslationBaseURL
         }
 
+        let receipt: String
+        do {
+            receipt = try appStoreReceiptProvider.base64EncodedReceipt()
+        } catch AppStoreReceiptError.missingReceiptURL {
+            AppLogger.settings.error("The release app is missing its App Store receipt.")
+            throw RuntimeConfigurationError.missingAppStoreReceipt
+        } catch let AppStoreReceiptError.unreadableReceipt(message) {
+            AppLogger.settings.error("The App Store receipt could not be read: \(message)")
+            throw RuntimeConfigurationError.unreadableAppStoreReceipt(message)
+        } catch AppStoreReceiptError.emptyReceipt {
+            AppLogger.settings.error("The release app contains an empty App Store receipt.")
+            throw RuntimeConfigurationError.unreadableAppStoreReceipt("The receipt file is empty.")
+        } catch {
+            AppLogger.settings.error("Unexpected App Store receipt error: \(error.localizedDescription)")
+            throw RuntimeConfigurationError.unreadableAppStoreReceipt(error.localizedDescription)
+        }
+
         return ManagedTranslationConnection(
             baseURL: bundledManagedTranslationBaseURL,
-            bearerToken: nil
+            authorization: .appStoreReceipt(receipt)
         )
         #endif
     }

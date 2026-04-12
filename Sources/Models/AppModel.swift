@@ -369,7 +369,7 @@ final class AppModel {
         )
         let provider = ManagedTranslationProvider(
             baseURL: connection.baseURL,
-            appToken: connection.bearerToken
+            authorization: connection.authorization
         )
 
         return try await provider.translateBatch(batchRequest)

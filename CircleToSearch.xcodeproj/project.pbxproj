@@ -31,6 +31,7 @@
 		A10000000000000000000314 /* NSScreenDisplayID.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000214 /* NSScreenDisplayID.swift */; };
 		A10000000000000000000315 /* ScreenTranslationOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000215 /* ScreenTranslationOverlayView.swift */; };
 		A10000000000000000000316 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000216 /* SettingsView.swift */; };
+		A10000000000000000000317 /* AppStoreReceiptProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000217 /* AppStoreReceiptProvider.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -63,6 +64,7 @@
 		A10000000000000000000214 /* NSScreenDisplayID.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NSScreenDisplayID.swift; sourceTree = "<group>"; };
 		A10000000000000000000215 /* ScreenTranslationOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenTranslationOverlayView.swift; sourceTree = "<group>"; };
 		A10000000000000000000216 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		A10000000000000000000217 /* AppStoreReceiptProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStoreReceiptProvider.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -160,6 +162,7 @@
 				A1000000000000000000020F /* StatusItemController.swift */,
 				A10000000000000000000210 /* TextReplacementRenderer.swift */,
 				A10000000000000000000211 /* TranslationProvider.swift */,
+				A10000000000000000000217 /* AppStoreReceiptProvider.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -275,6 +278,7 @@
 				A10000000000000000000314 /* NSScreenDisplayID.swift in Sources */,
 				A10000000000000000000315 /* ScreenTranslationOverlayView.swift in Sources */,
 				A10000000000000000000316 /* SettingsView.swift in Sources */,
+				A10000000000000000000317 /* AppStoreReceiptProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
