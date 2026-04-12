@@ -139,110 +139,114 @@ private struct ActiveCaptureEdgeGlowView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isPulsing = false
 
-    private let glowColor = Color(red: 0.30, green: 0.81, blue: 0.98)
-    private let innerStrokeColor = Color.white.opacity(0.72)
+    private let glowColor = Color(nsColor: .controlAccentColor)
+    private let hairlineColor = Color.white.opacity(0.16)
 
     var body: some View {
         GeometryReader { proxy in
             let cornerRadius = min(max(min(proxy.size.width, proxy.size.height) * 0.018, 18), 28)
-            let pulseDuration = isBusy ? 1.1 : 1.8
+            let pulseDuration = isBusy ? 1.15 : 1.8
 
-            ZStack {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(innerStrokeColor, lineWidth: 1.6)
-                    .padding(9)
-
-                RoundedRectangle(cornerRadius: cornerRadius + 1, style: .continuous)
-                    .strokeBorder(glowColor.opacity(glowOpacity), lineWidth: glowLineWidth)
-                    .blur(radius: glowBlurRadius)
-                    .padding(6)
-
-                RoundedRectangle(cornerRadius: cornerRadius + 2, style: .continuous)
-                    .strokeBorder(glowColor.opacity(secondaryGlowOpacity), lineWidth: 2.2)
-                    .padding(7)
-            }
-            .scaleEffect(glowScale)
-            .opacity(glowContainerOpacity)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .contentShape(Rectangle())
-            .onAppear {
-                guard !reduceMotion else {
-                    return
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .strokeBorder(hairlineColor.opacity(hairlineOpacity), lineWidth: 0.6)
+                .blur(radius: isBusy ? 0.18 : 0.08)
+                .padding(6)
+                .shadow(color: glowColor.opacity(primaryGlowOpacity), radius: primaryGlowRadius)
+                .shadow(color: glowColor.opacity(secondaryGlowOpacity), radius: secondaryGlowRadius)
+                .opacity(containerOpacity)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .contentShape(Rectangle())
+                .onAppear {
+                    updatePulseState(duration: pulseDuration)
                 }
-
-                withAnimation(.easeInOut(duration: pulseDuration).repeatForever(autoreverses: true)) {
-                    isPulsing = true
+                .onChange(of: reduceMotion) { _, _ in
+                    updatePulseState(duration: pulseDuration)
                 }
-            }
-            .onChange(of: reduceMotion) { _, newValue in
-                if newValue {
-                    isPulsing = false
-                } else {
-                    withAnimation(.easeInOut(duration: pulseDuration).repeatForever(autoreverses: true)) {
-                        isPulsing = true
-                    }
+                .onChange(of: isBusy) { _, _ in
+                    updatePulseState(duration: pulseDuration)
                 }
-            }
-            .onChange(of: isBusy) { _, _ in
-                guard !reduceMotion else {
-                    return
-                }
-
-                isPulsing = false
-                withAnimation(.easeInOut(duration: pulseDuration).repeatForever(autoreverses: true)) {
-                    isPulsing = true
-                }
-            }
         }
         .ignoresSafeArea()
     }
 
-    private var glowOpacity: Double {
-        if reduceMotion {
-            return isBusy ? 0.58 : 0.42
+    private func updatePulseState(duration: Double) {
+        if reduceMotion || !isBusy {
+            isPulsing = false
+            return
         }
 
-        return isPulsing ? (isBusy ? 0.92 : 0.70) : (isBusy ? 0.42 : 0.34)
+        isPulsing = false
+        withAnimation(.easeInOut(duration: duration).repeatForever(autoreverses: true)) {
+            isPulsing = true
+        }
+    }
+
+    private var hairlineOpacity: Double {
+        if reduceMotion {
+            return isBusy ? 0.28 : 0.16
+        }
+
+        if isBusy {
+            return isPulsing ? 0.34 : 0.16
+        }
+
+        return 0.08
+    }
+
+    private var primaryGlowOpacity: Double {
+        if reduceMotion {
+            return isBusy ? 0.22 : 0.12
+        }
+
+        if isBusy {
+            return isPulsing ? 0.26 : 0.10
+        }
+
+        return 0.06
     }
 
     private var secondaryGlowOpacity: Double {
         if reduceMotion {
-            return 0.44
+            return isBusy ? 0.12 : 0.06
         }
 
-        return isPulsing ? 0.68 : 0.30
+        if isBusy {
+            return isPulsing ? 0.14 : 0.05
+        }
+
+        return 0.03
     }
 
-    private var glowLineWidth: CGFloat {
+    private var primaryGlowRadius: CGFloat {
         if reduceMotion {
-            return isBusy ? 9 : 7
+            return isBusy ? 20 : 12
         }
 
-        return isPulsing ? (isBusy ? 11 : 8.5) : (isBusy ? 7.5 : 6.5)
+        if isBusy {
+            return isPulsing ? 24 : 12
+        }
+
+        return 10
     }
 
-    private var glowBlurRadius: CGFloat {
+    private var secondaryGlowRadius: CGFloat {
         if reduceMotion {
-            return isBusy ? 20 : 16
+            return isBusy ? 32 : 18
         }
 
-        return isPulsing ? (isBusy ? 24 : 18) : (isBusy ? 16 : 14)
+        if isBusy {
+            return isPulsing ? 38 : 18
+        }
+
+        return 14
     }
 
-    private var glowScale: CGFloat {
-        guard !reduceMotion else {
-            return 1
+    private var containerOpacity: Double {
+        if reduceMotion {
+            return 0.96
         }
 
-        return isPulsing ? 1.0025 : 0.998
-    }
-
-    private var glowContainerOpacity: Double {
-        guard !reduceMotion else {
-            return 1
-        }
-
-        return isPulsing ? 1 : 0.9
+        return isBusy ? 0.94 : 0.78
     }
 }
 
