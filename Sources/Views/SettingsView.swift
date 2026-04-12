@@ -15,68 +15,35 @@ struct SettingsView: View {
 
             Section("Translation") {
                 Picker(
-                    "Provider",
+                    "Target Language",
                     selection: Binding(
-                        get: { appModel.settingsStore.translationProvider },
-                        set: { appModel.settingsStore.translationProvider = $0 }
-                    )
-                ) {
-                    ForEach(TranslationProviderKind.allCases) { provider in
-                        Text(provider.displayName)
-                            .tag(provider)
-                    }
-                }
-
-                TextField(
-                    "English",
-                    text: Binding(
                         get: { appModel.settingsStore.targetLanguage },
                         set: { appModel.settingsStore.targetLanguage = $0 }
                     )
-                )
+                ) {
+                    ForEach(TranslationLanguage.allCases) { language in
+                        Text(language.displayName)
+                            .tag(language)
+                    }
+                }
 
-                Text(appModel.settingsStore.translationProvider.helperText)
+                Text("Screen text is recognized locally on the Mac, then translated by the managed Google Cloud NMT backend.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
 
-            Section("Opper") {
+            Section("Translation Service") {
                 TextField(
-                    "https://api.opper.ai",
+                    "http://127.0.0.1:8080",
                     text: Binding(
-                        get: { appModel.settingsStore.opperBaseURL },
-                        set: { appModel.settingsStore.opperBaseURL = $0 }
+                        get: { appModel.settingsStore.managedTranslationBaseURL },
+                        set: { appModel.settingsStore.managedTranslationBaseURL = $0 }
                     )
                 )
 
-                TextField(
-                    "openai/gpt-5.4-nano",
-                    text: Binding(
-                        get: { appModel.settingsStore.opperModel },
-                        set: { appModel.settingsStore.opperModel = $0 }
-                    )
-                )
-
-                SecureField(
-                    "OPPER_API_KEY",
-                    text: Binding(
-                        get: { appModel.credentialStore.opperAPIKey },
-                        set: { appModel.credentialStore.opperAPIKey = $0 }
-                    )
-                )
-
-                Text("The API key is stored in the macOS Keychain. The app calls Opper directly and does not require a proxy backend in this version.")
+                Text("Use a local URL while developing the backend. Production builds should point at the managed translation service.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
-
-                Text("Default model: openai/gpt-5.4-nano. Try openai/gpt-5.4-mini if nano is too weak.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-
-                if let error = appModel.credentialStore.lastPersistenceError, !error.isEmpty {
-                    Text(error)
-                        .foregroundStyle(.red)
-                }
             }
         }
         .formStyle(.grouped)

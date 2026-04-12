@@ -74,7 +74,7 @@ struct ScreenTranslationOverlayView: View {
                 }
                 .buttonStyle(.bordered)
 
-                Text(appModel.settingsStore.targetLanguage)
+                Text(appModel.settingsStore.targetLanguage.displayName)
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 10)

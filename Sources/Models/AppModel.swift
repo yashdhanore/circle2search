@@ -5,7 +5,6 @@ import Observation
 @Observable
 final class AppModel {
     let settingsStore: SettingsStore
-    let credentialStore: ProviderCredentialStore
 
     var statusMessage = "Ready. Click the menu bar icon or press \(GlobalHotkeyService.defaultShortcutDescription)."
     var lastErrorMessage: String?
@@ -22,7 +21,6 @@ final class AppModel {
 
     init(
         settingsStore: SettingsStore,
-        credentialStore: ProviderCredentialStore,
         hotkeyService: GlobalHotkeyService,
         overlayCoordinator: ScreenTranslationOverlayCoordinator,
         screenCaptureService: ScreenCaptureService,
@@ -31,7 +29,6 @@ final class AppModel {
         settingsWindowController: SettingsWindowController
     ) {
         self.settingsStore = settingsStore
-        self.credentialStore = credentialStore
         self.hotkeyService = hotkeyService
         self.overlayCoordinator = overlayCoordinator
         self.screenCaptureService = screenCaptureService
@@ -361,34 +358,14 @@ final class AppModel {
                     text: block.sourceText
                 )
             },
-            targetLanguage: settingsStore.targetLanguage
+            targetLanguageCode: settingsStore.targetLanguage.rawValue
         )
 
-        switch settingsStore.translationProvider {
-        case .opper:
-            let apiKey = credentialStore.opperAPIKey
-                .trimmingCharacters(in: .whitespacesAndNewlines)
+        let provider = ManagedTranslationProvider(
+            baseURL: settingsStore.managedTranslationBaseURL
+        )
 
-            guard !apiKey.isEmpty else {
-                throw TranslationProviderError.missingAPIKey(
-                    "Add an Opper API key in Settings before translating."
-                )
-            }
-
-            let provider = OpperTranslationProvider(
-                baseURL: settingsStore.opperBaseURL,
-                apiKey: apiKey,
-                model: settingsStore.opperModel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    ? "openai/gpt-5.4-nano"
-                    : settingsStore.opperModel.trimmingCharacters(in: .whitespacesAndNewlines)
-            )
-
-            return try await provider.translateBatch(batchRequest)
-        case .appleTranslation:
-            throw TranslationProviderError.unsupported(
-                "Apple Translation is not wired yet in this milestone."
-            )
-        }
+        return try await provider.translateBatch(batchRequest)
     }
 
     private func validatedSession(withID sessionID: UUID) -> ScreenTranslationSession? {

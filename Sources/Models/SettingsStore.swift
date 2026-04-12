@@ -8,48 +8,43 @@ final class SettingsStore {
         didSet { persist(searchEngineTemplate, for: Keys.searchEngineTemplate) }
     }
 
-    var targetLanguage: String {
-        didSet { persist(targetLanguage, for: Keys.targetLanguage) }
+    var targetLanguageCode: String {
+        didSet { persist(targetLanguageCode, for: Keys.targetLanguageCode) }
     }
 
-    var translationProvider: TranslationProviderKind {
-        didSet { persist(translationProvider.rawValue, for: Keys.translationProvider) }
-    }
-
-    var opperBaseURL: String {
-        didSet { persist(opperBaseURL, for: Keys.opperBaseURL) }
-    }
-
-    var opperModel: String {
-        didSet { persist(opperModel, for: Keys.opperModel) }
+    var managedTranslationBaseURL: String {
+        didSet { persist(managedTranslationBaseURL, for: Keys.managedTranslationBaseURL) }
     }
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         self.searchEngineTemplate = defaults.string(forKey: Keys.searchEngineTemplate)
             ?? "https://www.google.com/search?q={query}"
-        self.targetLanguage = defaults.string(forKey: Keys.targetLanguage)
-            ?? "English"
-        self.translationProvider = TranslationProviderKind(
-            rawValue: defaults.string(forKey: Keys.translationProvider) ?? ""
-        ) ?? .opper
-        self.opperBaseURL = defaults.string(forKey: Keys.opperBaseURL)
-            ?? "https://api.opper.ai"
-        self.opperModel = defaults.string(forKey: Keys.opperModel)
-            ?? "openai/gpt-5.4-nano"
+        let defaultLanguage = TranslationLanguage.preferredDefault().rawValue
+        self.targetLanguageCode = defaults.string(forKey: Keys.targetLanguageCode)
+            ?? defaultLanguage
+        self.managedTranslationBaseURL = defaults.string(forKey: Keys.managedTranslationBaseURL)
+            ?? "http://127.0.0.1:8080"
     }
 
     private let defaults: UserDefaults
 
     private enum Keys {
         static let searchEngineTemplate = "settings.searchEngineTemplate"
-        static let targetLanguage = "settings.targetLanguage"
-        static let translationProvider = "settings.translationProvider"
-        static let opperBaseURL = "settings.opperBaseURL"
-        static let opperModel = "settings.opperModel"
+        static let targetLanguageCode = "settings.targetLanguageCode"
+        static let managedTranslationBaseURL = "settings.managedTranslationBaseURL"
     }
 
     private func persist(_ value: String, for key: String) {
         defaults.set(value, forKey: key)
+    }
+
+    var targetLanguage: TranslationLanguage {
+        get {
+            TranslationLanguage.from(languageCode: targetLanguageCode) ?? .fallback
+        }
+        set {
+            targetLanguageCode = newValue.rawValue
+        }
     }
 }

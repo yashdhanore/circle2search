@@ -3,39 +3,41 @@
 `CircleToSearch` is a macOS menu bar utility for Circle-to-Search style workflows:
 
 - trigger a global shortcut
-- select an area on screen
+- capture the currently visible screen
 - OCR text locally
-- search that text
-- translate that text through a user-configured provider
+- translate visible text through a managed Google Cloud NMT backend
+- paint translated text back over the frozen screen
 
 ## Current Milestone
 
-This scaffold includes:
+This repo currently includes:
 
 - a SwiftPM macOS app target
-- a `MenuBarExtra` app shell
-- a settings window
+- a menu bar app shell with a dedicated settings window
 - a Carbon-backed global hotkey
-- a `ScreenCaptureKit`-backed frozen multi-display selection flow
-- local `Vision` OCR for the selected region
-- provider/config plumbing for Opper-backed translation
-- a project-local `build_and_run.sh` entrypoint
+- a `ScreenCaptureKit` frozen-screen capture flow
+- local `Vision` OCR for the visible screen
+- in-place translation overlay rendering
+- a managed translation backend under [backend/](./backend)
+- project-local helper scripts for the app and backend
 
-The next implementation slice is:
-
-1. refine the screenshot crop path and overlay polish
-2. add translation result presentation near the selected area
-3. add Apple Translation as a local provider option
-4. add searchable history and shortcut customization
-
-## Run
+## Run the app
 
 ```bash
 ./script/build_and_run.sh
 ```
 
+## Run the backend
+
+```bash
+cp backend/.env.example backend/.env
+# fill in GOOGLE_CLOUD_PROJECT and any optional settings
+./script/run_backend.sh
+```
+
 ## Notes
 
 - The default global shortcut is `Control-Shift-Space`.
-- Search uses a configurable URL template and requires a `{query}` token.
-- Translation is wired for Opper first so users can bring their own key without us operating a proxy service.
+- The app defaults to `http://127.0.0.1:8080` for the translation service during development.
+- The backend uses Google Cloud Translation Advanced v3 through the EU endpoint with `general/nmt`.
+- Google batch translation is not used here; the app needs synchronous low-latency translation, so the backend uses `translateText`.

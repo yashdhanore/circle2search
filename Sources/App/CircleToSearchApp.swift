@@ -7,12 +7,8 @@ struct CircleToSearchApp: App {
 
     init() {
         let settingsStore = SettingsStore()
-        let credentialStore = ProviderCredentialStore(
-            keychainStore: KeychainStore(serviceName: "com.circle2search.app")
-        )
         let appModel = AppModel(
             settingsStore: settingsStore,
-            credentialStore: credentialStore,
             hotkeyService: GlobalHotkeyService(),
             overlayCoordinator: ScreenTranslationOverlayCoordinator(),
             screenCaptureService: ScreenCaptureService(),
