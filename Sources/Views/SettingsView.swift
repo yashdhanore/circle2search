@@ -13,9 +13,9 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Section("Translation") {
+            Section("Always Translate To") {
                 Picker(
-                    "Target Language",
+                    "Language",
                     selection: Binding(
                         get: { appModel.settingsStore.targetLanguage },
                         set: { appModel.settingsStore.targetLanguage = $0 }
@@ -27,36 +27,43 @@ struct SettingsView: View {
                     }
                 }
 
-                Text("Screen text is recognized locally on the Mac, then translated by the managed Google Cloud NMT backend.")
+                Text("Every captured screen is translated into this language by default.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
 
-            Section("Translation Service") {
+            #if DEBUG
+            Section("Debug Translation Service") {
                 TextField(
                     "http://127.0.0.1:8080",
                     text: Binding(
-                        get: { appModel.settingsStore.managedTranslationBaseURL },
-                        set: { appModel.settingsStore.managedTranslationBaseURL = $0 }
+                        get: { appModel.managedTranslationDebugStore.baseURL },
+                        set: { appModel.managedTranslationDebugStore.baseURL = $0 }
                     )
                 )
 
-                Text("Use a local URL while developing the backend. Production builds should point at the managed translation service.")
+                Text("Use this only while developing against a local or non-production backend.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
 
                 SecureField(
-                    "Bearer token (optional)",
+                    "Bearer token (debug only)",
                     text: Binding(
-                        get: { appModel.settingsStore.managedTranslationBearerToken },
-                        set: { appModel.settingsStore.managedTranslationBearerToken = $0 }
+                        get: { appModel.managedTranslationDebugStore.bearerToken },
+                        set: { appModel.managedTranslationDebugStore.bearerToken = $0 }
                     )
                 )
 
-                Text("Set this when the managed translation backend requires TRANSLATE_SHARED_SECRET.")
+                Text("The debug bearer token is stored in the macOS Keychain and is not shown in release builds.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
+
+                if let error = appModel.managedTranslationDebugStore.lastPersistenceError, !error.isEmpty {
+                    Text(error)
+                        .foregroundStyle(.red)
+                }
             }
+            #endif
         }
         .formStyle(.grouped)
         .padding(20)

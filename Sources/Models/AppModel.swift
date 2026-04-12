@@ -5,6 +5,7 @@ import Observation
 @Observable
 final class AppModel {
     let settingsStore: SettingsStore
+    let managedTranslationDebugStore: ManagedTranslationDebugStore
 
     var statusMessage = "Ready. Click the menu bar icon or press \(GlobalHotkeyService.defaultShortcutDescription)."
     var lastErrorMessage: String?
@@ -21,6 +22,7 @@ final class AppModel {
 
     init(
         settingsStore: SettingsStore,
+        managedTranslationDebugStore: ManagedTranslationDebugStore,
         hotkeyService: GlobalHotkeyService,
         overlayCoordinator: ScreenTranslationOverlayCoordinator,
         screenCaptureService: ScreenCaptureService,
@@ -29,6 +31,7 @@ final class AppModel {
         settingsWindowController: SettingsWindowController
     ) {
         self.settingsStore = settingsStore
+        self.managedTranslationDebugStore = managedTranslationDebugStore
         self.hotkeyService = hotkeyService
         self.overlayCoordinator = overlayCoordinator
         self.screenCaptureService = screenCaptureService
@@ -361,9 +364,12 @@ final class AppModel {
             targetLanguageCode: settingsStore.targetLanguage.rawValue
         )
 
+        let connection = AppRuntimeConfiguration.managedTranslationConnection(
+            debugStore: managedTranslationDebugStore
+        )
         let provider = ManagedTranslationProvider(
-            baseURL: settingsStore.managedTranslationBaseURL,
-            appToken: settingsStore.managedTranslationBearerToken.trimmingCharacters(in: .whitespacesAndNewlines)
+            baseURL: connection.baseURL,
+            appToken: connection.bearerToken
         )
 
         return try await provider.translateBatch(batchRequest)
