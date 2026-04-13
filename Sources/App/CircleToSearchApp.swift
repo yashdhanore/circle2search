@@ -7,12 +7,17 @@ struct CircleToSearchApp: App {
 
     init() {
         let settingsStore = SettingsStore()
+        let keychainStore = KeychainStore(serviceName: AppRuntimeConfiguration.keychainServiceName)
         let debugStore = ManagedTranslationDebugStore(
-            keychainStore: KeychainStore(serviceName: AppRuntimeConfiguration.keychainServiceName)
+            keychainStore: keychainStore
+        )
+        let selfHostedBackendManager = SelfHostedBackendManager(
+            keychainStore: keychainStore
         )
         let appModel = AppModel(
             settingsStore: settingsStore,
             managedTranslationDebugStore: debugStore,
+            selfHostedBackendManager: selfHostedBackendManager,
             hotkeyService: GlobalHotkeyService(),
             overlayCoordinator: ScreenTranslationOverlayCoordinator(),
             screenCaptureService: ScreenCaptureService(),

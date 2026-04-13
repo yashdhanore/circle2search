@@ -36,6 +36,7 @@ enum AppLogger {
     static let subsystem = Bundle.main.bundleIdentifier ?? "com.circle2search.app"
 
     static let app = AppLogChannel(subsystem: subsystem, category: "app")
+    static let backend = AppLogChannel(subsystem: subsystem, category: "backend")
     static let menuBar = AppLogChannel(subsystem: subsystem, category: "menuBar")
     static let settings = AppLogChannel(subsystem: subsystem, category: "settings")
     static let capture = AppLogChannel(subsystem: subsystem, category: "capture")

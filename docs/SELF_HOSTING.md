@@ -2,18 +2,16 @@
 
 This guide is for the open-source/self-hosted version of CircleToSearch.
 
-The goal is simple:
-- run your own translation backend
-- keep your own Google credentials on your own machine or server
-- point the app at that backend
+The recommended setup is now the simple local flow:
 
-## The easiest setup
+1. Open the `CircleToSearch Open Source` app.
+2. Open Settings.
+3. Paste your Google Translate API key once.
+4. Click `Start Local Backend`.
+5. Wait for the status to say the backend is running.
+6. Use the app.
 
-The easiest setup is:
-- run the backend on the same Mac as the app
-- use a Google Cloud Translation API key
-- leave the backend URL in the app at `http://127.0.0.1:8080`
-- leave the access token blank unless you choose to add one
+CircleToSearch will then talk to a translation backend running on the same Mac at `http://127.0.0.1:8080`.
 
 This is the recommended path for non-developers.
 
@@ -22,124 +20,97 @@ This is the recommended path for non-developers.
 1. A Google Cloud project with the Cloud Translation API enabled.
 2. A Google Translate API key.
 3. Node.js 20 or newer installed on your Mac.
-4. The CircleToSearch source code on your Mac.
 
-## Step 1: Prepare the backend
+## The easiest setup
 
-The easiest way is to use the included setup script.
+Use the `Run On This Mac` section in Settings.
 
-Double-click:
+What it does:
+- stores your Google API key in macOS Keychain
+- copies the bundled backend files into Application Support
+- starts the local backend on your Mac
+- keeps CircleToSearch pointed at `http://127.0.0.1:8080`
 
-- `script/setup_self_host_backend.command`
+In the simple local mode, you do not need to type a backend URL or token.
 
-It will:
-- ask for your Google Translate API key
-- optionally ask for an access token
-- create `backend/.env`
-- install backend dependencies
+## If Node.js is missing
 
-If you prefer Terminal, run:
+The app will tell you that Node.js 20 or newer is required.
 
-```bash
-./script/setup_self_host_backend.command
-```
+Install Node.js, then return to Settings and click `Start Local Backend` again.
 
-## Step 2: Start the backend
+## Advanced mode
 
-Double-click:
+The `Advanced` section in Settings is only for users who host the backend somewhere other than the same Mac.
 
-- `script/start_self_host_backend.command`
-
-Or run:
-
-```bash
-./script/start_self_host_backend.command
-```
-
-If everything is correct, the backend will start on:
-
-- `http://127.0.0.1:8080`
-
-Keep that Terminal window open while using the app.
-
-## Step 3: Build the self-hosted app
-
-Open:
-
-- `CircleToSearch.xcodeproj`
-
-Use the shared Xcode scheme:
-
-- `CircleToSearch Open Source`
-
-The self-hosted build should show a `Self-Hosted Translation Service` section in Settings.
-
-## Step 4: Point the app to your backend
-
-Open app Settings.
-
-Use:
-- Backend URL: `http://127.0.0.1:8080`
-- Access token: leave blank if you did not create one during setup
-
-If you did create an access token in setup, paste the same value into the app.
+Use that only if you want to:
+- run the backend on another machine
+- run the backend on Cloud Run
+- protect a remote backend with an access token
 
 ## Simple mode vs advanced mode
 
-### Simple mode
+### Simple local mode
 
-Simple mode uses:
-- `GOOGLE_TRANSLATE_API_KEY`
+Simple local mode uses:
+- your Google Translate API key
 - Google Cloud Translation Basic
+- a backend process running on the same Mac as the app
 
-This is the easiest setup and is the recommended choice for most self-hosted users.
+This is the easiest setup and the recommended path for most open-source users.
 
-### Advanced mode
+### Advanced self-hosted mode
 
-Advanced mode uses:
-- `GOOGLE_CLOUD_PROJECT`
-- Google Cloud Translation Advanced v3
-- service-account based auth
+Advanced self-hosted mode is still available if you want to run the backend yourself outside the app.
 
-Advanced mode is better if you specifically need:
-- the Advanced v3 backend path
-- IAM/service-account based auth
-- the stronger managed-server configuration
-
-It is more complex and is not the recommended first setup for non-developers.
+That path supports:
+- a remote backend URL
+- an optional access token
+- the existing Cloud Run deployment flow
+- the Advanced v3 service-account setup
 
 ## Notes about access tokens
 
-If your backend only runs on your own Mac:
-- you can leave the app access token blank
-- the backend allows local loopback requests without extra auth
+If your backend runs only on your own Mac:
+- you can leave the access token blank
+- the app handles the local setup for you
 
 If you host the backend somewhere else:
-- set an access token in `backend/.env`
-- paste the same token into the app settings
+- set an access token on that backend
+- paste the same token into the app `Advanced` settings
 
 ## Troubleshooting
 
 ### The app says translation failed
 
 Check:
-- the backend Terminal window is still open
-- the backend URL is `http://127.0.0.1:8080`
+- the local backend status says it is running
 - your API key is valid
 - the Cloud Translation API is enabled in your Google Cloud project
 
-### The backend does not start
+### The local backend does not start
 
 Check:
 - Node.js is installed
-- `backend/.env` exists
-- `GOOGLE_TRANSLATE_API_KEY` is set in `backend/.env`
+- you pasted a Google API key in Settings
+- the app shows `Local backend is running on this Mac`
 
 ### I want to host the backend on another machine or server
 
 That is supported, but it is a more advanced setup.
 
 For that setup:
-- use a non-local backend URL in the app
+- use a non-local backend URL in the app `Advanced` section
 - set an access token
 - if you want, use the existing Cloud Run deployment path instead of local hosting
+
+## Developer / source-build flow
+
+If you are building the app from source in Xcode:
+
+1. Open `CircleToSearch.xcodeproj`
+2. Use the shared scheme `CircleToSearch Open Source`
+3. Build and run the app
+4. Use the same in-app `Run On This Mac` flow described above
+
+The old setup and start scripts are still in `script/` for manual backend work, but they are no longer the recommended first path for normal open-source users.

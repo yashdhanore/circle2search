@@ -6,6 +6,7 @@ import Observation
 final class AppModel {
     let settingsStore: SettingsStore
     let managedTranslationDebugStore: ManagedTranslationDebugStore
+    let selfHostedBackendManager: SelfHostedBackendManager
 
     var statusMessage = "Ready. Click the menu bar icon or press \(GlobalHotkeyService.defaultShortcutDescription)."
     var lastErrorMessage: String?
@@ -23,6 +24,7 @@ final class AppModel {
     init(
         settingsStore: SettingsStore,
         managedTranslationDebugStore: ManagedTranslationDebugStore,
+        selfHostedBackendManager: SelfHostedBackendManager,
         hotkeyService: GlobalHotkeyService,
         overlayCoordinator: ScreenTranslationOverlayCoordinator,
         screenCaptureService: ScreenCaptureService,
@@ -32,6 +34,7 @@ final class AppModel {
     ) {
         self.settingsStore = settingsStore
         self.managedTranslationDebugStore = managedTranslationDebugStore
+        self.selfHostedBackendManager = selfHostedBackendManager
         self.hotkeyService = hotkeyService
         self.overlayCoordinator = overlayCoordinator
         self.screenCaptureService = screenCaptureService
@@ -63,6 +66,10 @@ final class AppModel {
             lastErrorMessage = error.localizedDescription
             statusMessage = "Hotkey registration failed."
             AppLogger.app.error("Hotkey registration failed: \(error.localizedDescription)")
+        }
+
+        if AppRuntimeConfiguration.allowsManagedTranslationUserConfiguration {
+            selfHostedBackendManager.start()
         }
     }
 
@@ -122,6 +129,48 @@ final class AppModel {
     func openSettings() {
         AppLogger.settings.info("Opening settings window.")
         settingsWindowController.show(appModel: self)
+    }
+
+    func startLocalSelfHostedBackend() {
+        guard AppRuntimeConfiguration.allowsManagedTranslationUserConfiguration else {
+            return
+        }
+
+        Task {
+            await selfHostedBackendManager.startLocalBackend()
+
+            if selfHostedBackendManager.localBackendState == .running {
+                managedTranslationDebugStore.baseURL = selfHostedBackendManager.localBackendBaseURL
+                managedTranslationDebugStore.bearerToken = ""
+                AppLogger.settings.info("Configured the app to use the local self-hosted backend.")
+            }
+        }
+    }
+
+    func stopLocalSelfHostedBackend() {
+        guard AppRuntimeConfiguration.allowsManagedTranslationUserConfiguration else {
+            return
+        }
+
+        selfHostedBackendManager.stopLocalBackend()
+    }
+
+    func refreshSelfHostedBackendStatus() {
+        guard AppRuntimeConfiguration.allowsManagedTranslationUserConfiguration else {
+            return
+        }
+
+        Task {
+            await selfHostedBackendManager.refreshStatus()
+        }
+    }
+
+    func openNodeDownloadPage() {
+        selfHostedBackendManager.openNodeDownloadPage()
+    }
+
+    func openLocalBackendFolder() {
+        selfHostedBackendManager.openLocalBackendFolder()
     }
 
     private func prepareFullScreenTranslateSession() async {

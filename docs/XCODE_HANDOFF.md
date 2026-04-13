@@ -6,7 +6,7 @@ Current repo state:
 - The app is functional as a macOS menu bar utility.
 - Local OCR is on-device with Vision.
 - Translation goes through the managed Google Cloud Translation backend.
-- Debug-only backend URL and bearer token controls exist in Settings.
+- Open-source builds now expose a simple `Run On This Mac` setup plus an advanced remote backend section in Settings.
 - A real Xcode project now exists in `CircleToSearch.xcodeproj`.
 - The app now has:
   - an app target
@@ -28,8 +28,10 @@ These parts are already in the right direction and should be preserved:
 
 - Runtime config split between debug and release:
   - [AppRuntimeConfiguration.swift](/Users/ydh0rs/Desktop/Personal/circle2search/Sources/Support/AppRuntimeConfiguration.swift)
-- Debug-only backend controls in Settings:
+- Open-source/self-host backend controls in Settings:
   - [SettingsView.swift](/Users/ydh0rs/Desktop/Personal/circle2search/Sources/Views/SettingsView.swift)
+- Local backend manager for the open-source flow:
+  - [SelfHostedBackendManager.swift](/Users/ydh0rs/Desktop/Personal/circle2search/Sources/Services/SelfHostedBackendManager.swift)
 - Debug bearer token stored in Keychain instead of `UserDefaults`:
   - [ManagedTranslationDebugStore.swift](/Users/ydh0rs/Desktop/Personal/circle2search/Sources/Models/ManagedTranslationDebugStore.swift)
   - [KeychainStore.swift](/Users/ydh0rs/Desktop/Personal/circle2search/Sources/Services/KeychainStore.swift)
@@ -55,6 +57,8 @@ These parts are now in good shape and do not need to be redone on the Xcode mach
   - `Resources/CircleToSearch-Info.plist`
 - App Sandbox entitlements file exists:
   - `Resources/CircleToSearch.entitlements`
+- Open-source build now has its own entitlements file:
+  - `Resources/CircleToSearchOpenSource.entitlements`
 - Privacy manifest exists:
   - `Resources/PrivacyInfo.xcprivacy`
 - Debug and release xcconfig files exist:
@@ -196,6 +200,7 @@ Then validate:
 - backend network calls still work under sandbox
 - screen capture flow still works
 - global hotkey still works
+- the open-source build can start the local backend process with its dedicated entitlements file
 
 Important:
 - do not guess extra entitlements unless they are needed
@@ -231,8 +236,10 @@ Validate:
 - debug builds still point locally when desired
 - release builds never expose URL or token editing
 - release builds still translate correctly
-- the `CircleToSearch Open Source` scheme shows the self-host settings section
-- the open-source build works against a local backend with no token when the backend is only running on `127.0.0.1`
+- the `CircleToSearch Open Source` scheme shows the `Run On This Mac` section
+- the open-source build stores the Google API key in Keychain
+- the open-source build can start the bundled local backend from Settings
+- the open-source build works against a local backend on `127.0.0.1` with no token
 - the open-source build works against a remote self-hosted backend when an access token is configured
 
 ### Step 6. Build and validate the archive path
@@ -285,7 +292,7 @@ Files to inspect:
 
 Verify:
 - settings opens correctly
-- debug translation service section is visible in debug builds
+- debug/open-source self-host section is visible when user-managed translation is enabled
 - debug backend URL persists across relaunch
 - debug bearer token persists in Keychain
 - translation works against local backend
@@ -295,7 +302,7 @@ Verify:
 ### B. Release build tests
 
 Verify:
-- debug translation section is hidden
+- self-host configuration UI is hidden
 - no backend URL editing is possible
 - no bearer token editing is possible
 - release build resolves the fixed production endpoint
@@ -317,6 +324,8 @@ Verify:
 - menu bar icon trigger works
 - global hotkey trigger works
 - both entry points run the same capture/translate flow
+- in the open-source build, `Run On This Mac` can start the local backend without using Terminal scripts
+- in the open-source build, the app reports a clear Node.js requirement when Node is missing
 - menu bar and dock are not translated
 - overlay glow is visible enough but not heavy
 - translated text renders in place and remains readable
@@ -394,7 +403,7 @@ These are not urgent blockers:
 3. Open the Xcode project and build Debug.
 4. Validate debug and release config behavior.
 5. Validate entitlements and privacy manifest in a real build.
-6. Harden backend auth.
+6. Validate the receipt-backed backend auth path with a real archived build.
 7. Archive locally and test the archived app.
 8. TestFlight for macOS.
 9. App Store Connect privacy + metadata.

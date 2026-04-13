@@ -20,7 +20,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
 
         let window = NSWindow(contentViewController: hostingController)
         window.title = "Settings"
-        window.setContentSize(NSSize(width: 560, height: 420))
+        window.setContentSize(NSSize(width: 620, height: 560))
         window.styleMask = [.titled, .closable, .miniaturizable]
         window.titlebarAppearsTransparent = false
         window.center()
