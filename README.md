@@ -1,78 +1,85 @@
 # CircleToSearch
 
-`CircleToSearch` is a macOS menu bar utility for Circle-to-Search style workflows:
+`CircleToSearch` is a macOS menu bar app that:
 
-- trigger a global shortcut
-- capture the currently visible screen
-- OCR text locally
-- translate visible text through a managed Google Cloud NMT backend
-- paint translated text back over the frozen screen
+- captures the visible screen
+- runs OCR locally with Vision
+- translates visible text
+- renders translated text back over a frozen screen overlay
 
-## Current Milestone
+This repo is currently optimized for developers working on the app locally.
 
-This repo currently includes:
+## Prerequisites
 
-- a SwiftPM-first macOS app target
-- a real Xcode macOS app project at `CircleToSearch.xcodeproj`
-- a menu bar app shell with a dedicated settings window
-- a Carbon-backed global hotkey
-- a `ScreenCaptureKit` frozen-screen capture flow
-- local `Vision` OCR for the visible screen
-- in-place translation overlay rendering
-- a managed translation backend under [backend/](./backend)
-- project-local helper scripts for the app and backend
+- macOS 15+
+- a recent Xcode with the macOS 15 SDK
+- a Google Cloud project with the Cloud Translation API enabled
+- a Google Translate API key
+- Node.js 20+ for source builds that do not include the packaged local backend helper
 
-## Run the app
+## Quick Start
 
-```bash
-./script/build_and_run.sh
-```
+### Open-source source build
 
-For Xcode builds, open `CircleToSearch.xcodeproj` and run the `CircleToSearch` macOS app scheme.
+1. Open `CircleToSearch.xcodeproj`
+2. Select the `CircleToSearch Open Source` scheme
+3. Build and run the app
+4. Open Settings
+5. Paste your Google Translate API key in `Run On This Mac`
+6. Wait for the local backend status to turn healthy
+7. Use the app
 
-## Run the backend
-
-```bash
-cp backend/.env.example backend/.env
-# fill in GOOGLE_CLOUD_PROJECT and any optional settings
-./script/run_backend.sh
-```
-
-## Self-hosted open-source setup
-
-The recommended open-source flow is now:
-
-1. Build or download the `CircleToSearch Open Source` app
-2. Open Settings
-3. Paste your Google Translate API key once
-4. Wait while CircleToSearch starts the local backend automatically
-5. Use the app
-
-In Xcode, the shared open-source scheme is:
-
-- `CircleToSearch Open Source`
-
-Maintainers packaging the open-source app should also run:
+The source-build fallback starts the local backend with Node.js. If you want the open-source build to behave more like a packaged app, run:
 
 ```bash
 ./script/build_local_backend_helper.sh
 ```
 
-The old setup and start scripts are still available for manual backend work and fallback source-build scenarios:
+Then rebuild the `CircleToSearch Open Source` scheme. That bundles a local backend helper into the app so the open-source build no longer depends on Node at runtime.
+
+### Managed backend build
+
+The default `CircleToSearch` scheme is the managed-backend/App Store path.
+
+- backend URL comes from the Xcode config
+- release builds use receipt-based auth
+- self-host settings are hidden in release mode
+
+Use this path only if you are working on the managed backend flow.
+
+## Backend
+
+The backend lives in [backend/](./backend).
+
+Useful commands:
 
 ```bash
-./script/setup_self_host_backend.command
-./script/start_self_host_backend.command
+cd backend
+npm install
+npm run check
 ```
 
-Detailed instructions:
+Local source-build fallback:
 
-- [docs/SELF_HOSTING.md](./docs/SELF_HOSTING.md)
+```bash
+./script/run_backend.sh
+```
 
-## Notes
+Cloud Run deployment helper:
 
-- The default global shortcut is `Control-Shift-Space`.
-- The app defaults to `http://127.0.0.1:8080` for the translation service during development.
-- Release builds read the managed translation endpoint from the Xcode build configuration via `ManagedTranslationBaseURL`.
-- The backend uses Google Cloud Translation Advanced v3 through the EU endpoint with `general/nmt`.
-- Google batch translation is not used here; the app needs synchronous low-latency translation, so the backend uses `translateText`.
+```bash
+./script/deploy_cloud_run.sh
+```
+
+## Docs
+
+- [docs/SELF_HOSTING.md](./docs/SELF_HOSTING.md): open-source developer setup
+- [docs/XCODE_HANDOFF.md](./docs/XCODE_HANDOFF.md): Xcode-machine checklist for this repo
+
+## Repo Layout
+
+- `Sources/`: macOS app source
+- `Resources/`: plist, entitlements, assets, packaged helper resources
+- `Config/`: Xcode build configuration files
+- `backend/`: translation backend
+- `script/`: local build and backend helper scripts

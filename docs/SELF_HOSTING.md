@@ -1,133 +1,97 @@
-# Self-Hosting CircleToSearch
+# Open Source Developer Setup
 
-This guide is for the open-source/self-hosted version of CircleToSearch.
+This document is for developers running the `CircleToSearch Open Source` scheme from this repo.
 
-The recommended setup is now the simple local flow:
+## What You Need
 
-1. Open the `CircleToSearch Open Source` app.
-2. Open Settings.
-3. Paste your Google Translate API key once.
-4. Wait a moment while CircleToSearch starts the local backend automatically.
-5. Wait for the status to say the backend is running.
-6. Use the app.
+- macOS 15+
+- a recent Xcode with the macOS 15 SDK
+- a Google Cloud project with the Cloud Translation API enabled
+- a Google Translate API key
+- Node.js 20+ for source builds without the packaged helper runtime
 
-CircleToSearch will then talk to a translation backend running on the same Mac at `http://127.0.0.1:8080`.
+## Fastest Path
 
-This is the recommended path for non-developers.
+1. Open `CircleToSearch.xcodeproj`
+2. Select `CircleToSearch Open Source`
+3. Build and run
+4. Open Settings
+5. Paste your Google Translate API key into `Run On This Mac`
+6. Wait for the local backend status to become healthy
+7. Use the app
 
-## What you need
+If the build does not include the packaged local backend helper, the app falls back to Node.js for the local backend.
 
-1. A Google Cloud project with the Cloud Translation API enabled.
-2. A Google Translate API key.
-3. A packaged `CircleToSearch Open Source` app that already includes the local backend runtime.
+## Optional: Build The Packaged Local Backend Helper
 
-## The easiest setup
+If you want the open-source build to run without Node at runtime, generate the local backend helper before building the app:
 
-Use the `Run On This Mac` section in Settings.
+```bash
+./script/build_local_backend_helper.sh
+```
 
-What it does:
-- stores your Google API key in macOS Keychain
-- starts the bundled local backend on your Mac automatically
-- keeps CircleToSearch pointed at `http://127.0.0.1:8080`
+That creates:
 
-In the simple local mode, you do not need to type a backend URL or token.
+- `Resources/OpenSourceRuntime/circle2search-local-backend`
 
-## What normal users should download
+Then rebuild `CircleToSearch Open Source`.
 
-Normal users should download a packaged `CircleToSearch Open Source.app`.
+Use this when:
+- preparing a shareable open-source app build
+- testing the packaged-helper path
 
-That packaged app should already include the local backend runtime.
+You do not need it for normal source-level development if Node.js is installed.
 
-Normal users should not need:
-- Node.js
-- Terminal setup
-- backend scripts
-- manual backend start buttons
+## Advanced Remote Backend
 
-## If you built the app from source instead of downloading a packaged app
+The `Advanced` section in Settings is only for remote or custom backend setups.
 
-A source build may not include the packaged local backend runtime yet.
+Use it if you want to:
+- point the app at a backend running on another machine
+- point the app at Cloud Run
+- use an access token for a protected backend
 
-In that case, CircleToSearch may tell you that Node.js is required.
+For normal local development, keep using `Run On This Mac`.
 
-That is expected for a source build until the maintainer packages the local backend runtime into the app bundle.
+## Backend Commands
 
-## Advanced mode
+Backend validation:
 
-The `Advanced` section in Settings is only for users who host the backend somewhere other than the same Mac.
+```bash
+cd backend
+npm install
+npm run check
+```
 
-Use that only if you want to:
-- run the backend on another machine
-- run the backend on Cloud Run
-- protect a remote backend with an access token
+Manual local backend run:
 
-## Simple mode vs advanced mode
+```bash
+./script/run_backend.sh
+```
 
-### Simple local mode
+Cloud Run deployment helper:
 
-Simple local mode uses:
-- your Google Translate API key
-- Google Cloud Translation Basic
-- a bundled local backend process running on the same Mac as the app
-
-This is the easiest setup and the recommended path for most open-source users.
-
-### Advanced self-hosted mode
-
-Advanced self-hosted mode is still available if you want to run the backend yourself outside the app.
-
-That path supports:
-- a remote backend URL
-- an optional access token
-- the existing Cloud Run deployment flow
-- the Advanced v3 service-account setup
-
-## Notes about access tokens
-
-If your backend runs only on your own Mac:
-- you can leave the access token blank
-- the app handles the local startup for you
-
-If you host the backend somewhere else:
-- set an access token on that backend
-- paste the same token into the app `Advanced` settings
+```bash
+./script/deploy_cloud_run.sh
+```
 
 ## Troubleshooting
+
+### The app says Node.js is required
+
+This means your source build does not include the packaged local backend helper.
+
+Fix either by:
+- installing Node.js 20+, or
+- running `./script/build_local_backend_helper.sh` and rebuilding
 
 ### The app says translation failed
 
 Check:
-- the local backend status says it is running
-- your API key is valid
-- the Cloud Translation API is enabled in your Google Cloud project
+- your Google API key is valid
+- Cloud Translation API is enabled on your Google Cloud project
+- the local backend status in Settings is healthy
 
-### The local backend does not start
+### I want to inspect the local backend files
 
-Check:
-- you pasted a Google API key in Settings
-- the app shows `Local backend is running on this Mac`
-
-If you are using a source build instead of a packaged Open Source app:
-- the packaged local backend runtime may not be bundled yet
-- Node.js may still be required for that source build
-
-### I want to host the backend on another machine or server
-
-That is supported, but it is a more advanced setup.
-
-For that setup:
-- use a non-local backend URL in the app `Advanced` section
-- set an access token
-- if you want, use the existing Cloud Run deployment path instead of local hosting
-
-## Developer / source-build flow
-
-If you are building the app from source in Xcode:
-
-1. Open `CircleToSearch.xcodeproj`
-2. Use the shared scheme `CircleToSearch Open Source`
-3. Run `./script/build_local_backend_helper.sh`
-4. Build and run the app
-5. Use the same in-app `Run On This Mac` flow described above
-
-The old setup and start scripts are still in `script/` for manual backend work, but they are no longer the recommended first path for normal open-source users.
+Use the `Advanced` section in Settings and click `Open Local Backend Folder`.

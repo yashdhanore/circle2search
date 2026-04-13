@@ -42,7 +42,7 @@ struct SettingsView: View {
                         )
                     )
 
-                    Text("Paste your Google Translate API key once. CircleToSearch will start the local translation service automatically on this Mac.")
+                    Text("Paste your Google Translate API key once. CircleToSearch will start the local translation service automatically on this Mac. For source builds without the packaged helper, install Node.js 20+.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
 

@@ -24,9 +24,9 @@ enum SelfHostedBackendError: LocalizedError {
         case .missingBundledBackendTemplate:
             return "This app build does not include the local backend files. Rebuild the Open Source app and try again."
         case .missingBundledBackendRuntime:
-            return "This build does not include the packaged local backend runtime. Install Node.js for a source build, or use the packaged Open Source app."
+            return "This build does not include the packaged local backend runtime. Install Node.js for source builds, or generate the helper with script/build_local_backend_helper.sh."
         case .nodeRuntimeUnavailable:
-            return "This source build needs Node.js 20 or newer because it does not include the packaged local backend runtime."
+            return "This source build needs Node.js 20 or newer because no packaged local backend runtime is bundled."
         case .workingDirectoryUnavailable:
             return "The local backend working directory could not be prepared."
         }
