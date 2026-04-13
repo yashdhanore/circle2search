@@ -40,12 +40,12 @@
 		A10000000000000000000012 /* CircleToSearch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CircleToSearch.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000017 /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
 		A10000000000000000000018 /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
-		A1000000000000000000001F /* OpenSource.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = OpenSource.xcconfig; sourceTree = "<group>"; };
-		A10000000000000000000019 /* CircleToSearch-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = CircleToSearch-Info.plist; sourceTree = "<group>"; };
+		A10000000000000000000019 /* CircleToSearch-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "CircleToSearch-Info.plist"; sourceTree = "<group>"; };
 		A1000000000000000000001A /* CircleToSearch.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CircleToSearch.entitlements; sourceTree = "<group>"; };
 		A1000000000000000000001B /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		A1000000000000000000001C /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		A10000000000000000000023 /* backend */ = {isa = PBXFileReference; lastKnownFileType = folder; path = backend; sourceTree = "<group>"; };
+		A1000000000000000000001F /* OpenSource.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = OpenSource.xcconfig; sourceTree = "<group>"; };
+		A10000000000000000000023 /* backend */ = {isa = PBXFileReference; lastKnownFileType = folder; path = backend; sourceTree = SOURCE_ROOT; };
 		A10000000000000000000024 /* CircleToSearchOpenSource.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CircleToSearchOpenSource.entitlements; sourceTree = "<group>"; };
 		A10000000000000000000201 /* CircleToSearchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircleToSearchApp.swift; sourceTree = "<group>"; };
 		A10000000000000000000202 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -321,18 +321,6 @@
 			};
 			name = Release;
 		};
-		A10000000000000000000020 /* OpenSource */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				CODE_SIGN_STYLE = Automatic;
-				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				SDKROOT = macosx;
-				SUPPORTED_PLATFORMS = macosx;
-				SWIFT_VERSION = 6.0;
-			};
-			name = OpenSource;
-		};
 		A10000000000000000000015 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = A10000000000000000000017 /* Debug.xcconfig */;
@@ -340,7 +328,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Resources/CircleToSearch.entitlements;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = Resources/CircleToSearch-Info.plist;
+				INFOPLIST_FILE = "Resources/CircleToSearch-Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -357,7 +345,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Resources/CircleToSearch.entitlements;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = Resources/CircleToSearch-Info.plist;
+				INFOPLIST_FILE = "Resources/CircleToSearch-Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -367,6 +355,18 @@
 			};
 			name = Release;
 		};
+		A10000000000000000000020 /* OpenSource */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CODE_SIGN_STYLE = Automatic;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_VERSION = 6.0;
+			};
+			name = OpenSource;
+		};
 		A10000000000000000000021 /* OpenSource */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = A1000000000000000000001F /* OpenSource.xcconfig */;
@@ -374,7 +374,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Resources/CircleToSearchOpenSource.entitlements;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = Resources/CircleToSearch-Info.plist;
+				INFOPLIST_FILE = "Resources/CircleToSearch-Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
