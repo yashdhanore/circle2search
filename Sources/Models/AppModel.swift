@@ -8,10 +8,6 @@ final class AppModel {
     let managedTranslationDebugStore: ManagedTranslationDebugStore
     let selfHostedBackendManager: SelfHostedBackendManager
 
-    var selfHostedGoogleAPIKey: String {
-        selfHostedBackendManager.googleAPIKey
-    }
-
     var statusMessage = "Ready. Click the menu bar icon or press \(GlobalHotkeyService.defaultShortcutDescription)."
     var lastErrorMessage: String?
     var currentScreenSession: ScreenTranslationSession?
@@ -73,7 +69,6 @@ final class AppModel {
         }
 
         if AppRuntimeConfiguration.allowsManagedTranslationUserConfiguration {
-            alignToLocalSelfHostedBackendIfNeeded()
             selfHostedBackendManager.start()
         }
     }
@@ -143,21 +138,7 @@ final class AppModel {
 
         Task {
             await selfHostedBackendManager.refreshStatus()
-            alignToLocalSelfHostedBackendIfNeeded()
         }
-    }
-
-    func openNodeDownloadPage() {
-        selfHostedBackendManager.openNodeDownloadPage()
-    }
-
-    func openLocalBackendFolder() {
-        selfHostedBackendManager.openLocalBackendFolder()
-    }
-
-    func updateSelfHostedGoogleAPIKey(_ value: String) {
-        selfHostedBackendManager.googleAPIKey = value
-        alignToLocalSelfHostedBackendIfNeeded()
     }
 
     private func prepareFullScreenTranslateSession() async {
@@ -409,20 +390,6 @@ final class AppModel {
         )
 
         return try await provider.translateBatch(batchRequest)
-    }
-
-    private func alignToLocalSelfHostedBackendIfNeeded() {
-        guard AppRuntimeConfiguration.allowsManagedTranslationUserConfiguration else {
-            return
-        }
-
-        let trimmedAPIKey = selfHostedBackendManager.googleAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedAPIKey.isEmpty else {
-            return
-        }
-
-        managedTranslationDebugStore.baseURL = selfHostedBackendManager.localBackendBaseURL
-        managedTranslationDebugStore.bearerToken = ""
     }
 
     private func validatedSession(withID sessionID: UUID) -> ScreenTranslationSession? {

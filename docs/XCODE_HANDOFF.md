@@ -4,28 +4,34 @@ This repo is developed from a machine without usable Xcode access. Use this chec
 
 ## Open Source Scheme
 
-Use this for the developer/self-hosted path.
+Use this for normal repo development.
 
-1. Open `CircleToSearch.xcodeproj`
-2. Select `CircleToSearch Open Source`
-3. Build and run
-4. Paste a Google Translate API key in Settings
-5. Confirm the local backend starts and translation works
-
-If you want the open-source build to run without Node at runtime:
+1. In Terminal:
 
 ```bash
-./script/build_local_backend_helper.sh
+cd backend
+npm install
+cp .env.example .env
 ```
 
-Then rebuild the scheme and verify the packaged-helper path still works.
+2. Set `GOOGLE_TRANSLATE_API_KEY` in `backend/.env`
+3. From the repo root, run:
+
+```bash
+./script/run_backend.sh
+```
+
+4. Open `CircleToSearch.xcodeproj`
+5. Select `CircleToSearch Open Source`
+6. Build and run
+7. Open Settings and click `Check Status`
+8. Verify translation works
 
 Validate:
-- `Run On This Mac` is visible
-- the Google API key is stored in Keychain
-- local backend status becomes healthy
+- `Local Backend` is visible
+- local backend status becomes reachable
 - translation works against `127.0.0.1`
-- the `Advanced` section still works for remote backends
+- the `Advanced` section still works for remote backends when needed
 
 ## Managed Scheme
 
@@ -60,6 +66,7 @@ Relevant files:
 - `Config/Debug.xcconfig`
 - `Config/Release.xcconfig`
 - `Config/OpenSource.xcconfig`
+- `backend/.env.example`
 
 ## Current Machine Constraint
 

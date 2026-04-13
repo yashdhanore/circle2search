@@ -26,15 +26,13 @@ if [[ -z "$GOOGLE_TRANSLATE_API_KEY" ]]; then
   exit 1
 fi
 
-read -r -p "Optional access token for the app (press Enter to skip): " TRANSLATE_SHARED_SECRET
-
 cat >"$ENV_FILE" <<EOF
 PORT=8080
 GOOGLE_TRANSLATE_API_KEY=$GOOGLE_TRANSLATE_API_KEY
 GOOGLE_TRANSLATE_BASIC_ENDPOINT=translation.googleapis.com
 GOOGLE_TRANSLATE_LABELS_JSON={"app":"circle2search","surface":"screen_translate"}
 TRANSLATE_ALLOW_LOCALHOST_WITHOUT_AUTH=true
-TRANSLATE_SHARED_SECRET=$TRANSLATE_SHARED_SECRET
+TRANSLATE_SHARED_SECRET=
 EOF
 
 echo
@@ -49,8 +47,4 @@ echo "Next steps:"
 echo "1. Start the backend by double-clicking script/start_self_host_backend.command"
 echo "2. Build or run the Open Source app configuration"
 echo "3. In app settings, leave the backend URL at http://127.0.0.1:8080"
-if [[ -n "$TRANSLATE_SHARED_SECRET" ]]; then
-  echo "4. Paste the same access token into the app settings"
-else
-  echo "4. Leave the access token blank"
-fi
+echo "4. Leave the access token blank"

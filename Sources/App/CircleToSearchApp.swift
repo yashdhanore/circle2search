@@ -11,9 +11,7 @@ struct CircleToSearchApp: App {
         let debugStore = ManagedTranslationDebugStore(
             keychainStore: keychainStore
         )
-        let selfHostedBackendManager = SelfHostedBackendManager(
-            keychainStore: keychainStore
-        )
+        let selfHostedBackendManager = SelfHostedBackendManager()
         let appModel = AppModel(
             settingsStore: settingsStore,
             managedTranslationDebugStore: debugStore,

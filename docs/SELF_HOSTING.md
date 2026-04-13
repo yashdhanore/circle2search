@@ -8,39 +8,41 @@ This document is for developers running the `CircleToSearch Open Source` scheme 
 - a recent Xcode with the macOS 15 SDK
 - a Google Cloud project with the Cloud Translation API enabled
 - a Google Translate API key
-- Node.js 20+ for source builds without the packaged helper runtime
+- Node.js 20+
 
-## Fastest Path
+## Quick Start
 
-1. Open `CircleToSearch.xcodeproj`
-2. Select `CircleToSearch Open Source`
-3. Build and run
-4. Open Settings
-5. Paste your Google Translate API key into `Run On This Mac`
-6. Wait for the local backend status to become healthy
-7. Use the app
-
-If the build does not include the packaged local backend helper, the app falls back to Node.js for the local backend.
-
-## Optional: Build The Packaged Local Backend Helper
-
-If you want the open-source build to run without Node at runtime, generate the local backend helper before building the app:
+1. Install backend dependencies:
 
 ```bash
-./script/build_local_backend_helper.sh
+cd backend
+npm install
+cp .env.example .env
 ```
 
-That creates:
+2. Edit `backend/.env` and set:
 
-- `Resources/OpenSourceRuntime/circle2search-local-backend`
+```bash
+GOOGLE_TRANSLATE_API_KEY=your_key_here
+```
 
-Then rebuild `CircleToSearch Open Source`.
+For normal local development:
+- leave `TRANSLATE_SHARED_SECRET` blank
+- leave `GOOGLE_ACCESS_TOKEN` blank
+- leave the rest of the advanced settings alone unless you are intentionally using Cloud Run or the managed service-account flow
 
-Use this when:
-- preparing a shareable open-source app build
-- testing the packaged-helper path
+3. From the repo root, start the backend:
 
-You do not need it for normal source-level development if Node.js is installed.
+```bash
+./script/run_backend.sh
+```
+
+4. Open `CircleToSearch.xcodeproj`
+5. Select `CircleToSearch Open Source`
+6. Build and run
+7. Open Settings
+8. Click `Check Status`
+9. Use the app
 
 ## Advanced Remote Backend
 
@@ -51,7 +53,7 @@ Use it if you want to:
 - point the app at Cloud Run
 - use an access token for a protected backend
 
-For normal local development, keep using `Run On This Mac`.
+For normal local development, leave the app pointed at `http://127.0.0.1:8080` and keep the access token empty.
 
 ## Backend Commands
 
@@ -69,21 +71,15 @@ Manual local backend run:
 ./script/run_backend.sh
 ```
 
-Cloud Run deployment helper:
-
-```bash
-./script/deploy_cloud_run.sh
-```
-
 ## Troubleshooting
 
-### The app says Node.js is required
+### The app says it could not connect to the server
 
-This means your source build does not include the packaged local backend helper.
-
-Fix either by:
-- installing Node.js 20+, or
-- running `./script/build_local_backend_helper.sh` and rebuilding
+Check:
+- `./script/run_backend.sh` is still running in a Terminal window
+- `backend/.env` contains a valid `GOOGLE_TRANSLATE_API_KEY`
+- `npm install` completed in `backend/`
+- Settings still point to `http://127.0.0.1:8080`
 
 ### The app says translation failed
 
@@ -91,7 +87,3 @@ Check:
 - your Google API key is valid
 - Cloud Translation API is enabled on your Google Cloud project
 - the local backend status in Settings is healthy
-
-### I want to inspect the local backend files
-
-Use the `Advanced` section in Settings and click `Open Local Backend Folder`.

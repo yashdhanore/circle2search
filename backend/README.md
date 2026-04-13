@@ -1,25 +1,26 @@
 # CircleToSearch Backend
 
-Managed translation service for the macOS app.
+Translation backend for the macOS app.
 
 ## What it does
 
 - Accepts OCR text blocks from the app.
-- Calls Google Cloud Translation Advanced v3.
-- Uses the EU regional endpoint.
-- Uses the `general/nmt` model for low-latency translation.
+- Calls Google Cloud Translation.
+- Uses Basic API-key mode for the simplest local setup.
+- Uses Advanced v3 with the EU endpoint when you intentionally choose the service-account path.
 - Returns translated blocks in the same order and with the same ids.
-- Requires authorization for every translation request.
 
-## Recommended self-host mode
+## Recommended local setup
 
-For most people, the easiest self-hosted setup is:
+For normal repo development:
 
-- run the backend on the same Mac as the app
-- set `GOOGLE_TRANSLATE_API_KEY`
-- leave `TRANSLATE_SHARED_SECRET` blank
+1. Copy `.env.example` to `.env`
+2. Set `GOOGLE_TRANSLATE_API_KEY`
+3. Leave `TRANSLATE_SHARED_SECRET` blank
+4. Leave `GOOGLE_ACCESS_TOKEN` blank
+5. Run `../script/run_backend.sh` from the repo root
 
-That uses Google Cloud Translation Basic with an API key and keeps setup much simpler than the Advanced service-account flow.
+That uses Google Cloud Translation Basic with an API key and avoids the managed service-account setup entirely.
 
 ## API
 
@@ -58,21 +59,21 @@ Response:
 
 Copy `.env.example` and set:
 
-- `GOOGLE_TRANSLATE_API_KEY` for the simplest self-hosted setup
-- `GOOGLE_CLOUD_PROJECT`
-- `GOOGLE_TRANSLATE_ENDPOINT` defaults to `translate-eu.googleapis.com`
-- `GOOGLE_TRANSLATE_LOCATION` defaults to `europe-west1`
-- `GOOGLE_TRANSLATE_MODEL` defaults to `general/nmt`
+- `GOOGLE_TRANSLATE_API_KEY` for the simple local developer flow
+- `GOOGLE_CLOUD_PROJECT` only if you intentionally want the Advanced v3 service-account flow
+- `GOOGLE_TRANSLATE_ENDPOINT` defaults to `translate-eu.googleapis.com` for the Advanced flow
+- `GOOGLE_TRANSLATE_LOCATION` defaults to `europe-west1` for the Advanced flow
+- `GOOGLE_TRANSLATE_MODEL` defaults to `general/nmt` for the Advanced flow
 - `GOOGLE_TRANSLATE_BASIC_ENDPOINT` defaults to `translation.googleapis.com`
 - `GOOGLE_TRANSLATE_LABELS_JSON` for static labels
 - `APP_STORE_EXPECTED_BUNDLE_ID` for release receipt validation
 - `APP_STORE_RECEIPT_CACHE_TTL_SECONDS` for receipt-validation cache duration
 - `TRANSLATE_RATE_LIMIT_WINDOW_SECONDS` and `TRANSLATE_RATE_LIMIT_MAX_REQUESTS` for per-subject rate limiting
 - `TRANSLATE_ALLOW_LOCALHOST_WITHOUT_AUTH` to allow local app requests without a token
-- `TRANSLATE_SHARED_SECRET` for explicit debug bearer auth
+- `TRANSLATE_SHARED_SECRET` only for protected remote/debug backend use
 - `GOOGLE_ACCESS_TOKEN` only for local testing overrides
 
-## Google Cloud setup
+## Advanced Cloud Run setup
 
 - Deploy the service to Cloud Run with a service account attached.
 - Grant the service account `roles/cloudtranslate.user`.
@@ -80,7 +81,7 @@ Copy `.env.example` and set:
 
 ## Authorization modes
 
-The backend is fail-closed.
+The backend is fail-closed for non-local traffic.
 
 It accepts either:
 - an App Store receipt header from the release app: `X-Circle-To-Search-App-Receipt`
@@ -89,8 +90,8 @@ It accepts either:
 
 Recommended usage:
 - Release/App Store builds authenticate with the app receipt.
-- Self-hosted local use can rely on loopback requests.
-- Remote self-hosted use should configure `TRANSLATE_SHARED_SECRET`.
+- Local repo development can rely on loopback requests.
+- Remote/self-hosted use should configure `TRANSLATE_SHARED_SECRET`.
 
 ## Notes
 

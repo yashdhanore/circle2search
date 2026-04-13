@@ -15,27 +15,37 @@ This repo is currently optimized for developers working on the app locally.
 - a recent Xcode with the macOS 15 SDK
 - a Google Cloud project with the Cloud Translation API enabled
 - a Google Translate API key
-- Node.js 20+ for source builds that do not include the packaged local backend helper
+- Node.js 20+
 
 ## Quick Start
 
-### Open-source source build
-
-1. Open `CircleToSearch.xcodeproj`
-2. Select the `CircleToSearch Open Source` scheme
-3. Build and run the app
-4. Open Settings
-5. Paste your Google Translate API key in `Run On This Mac`
-6. Wait for the local backend status to turn healthy
-7. Use the app
-
-The source-build fallback starts the local backend with Node.js. If you want the open-source build to behave more like a packaged app, run:
+1. Install backend dependencies:
 
 ```bash
-./script/build_local_backend_helper.sh
+cd backend
+npm install
+cp .env.example .env
 ```
 
-Then rebuild the `CircleToSearch Open Source` scheme. That bundles a local backend helper into the app so the open-source build no longer depends on Node at runtime.
+2. Edit `backend/.env` and set only:
+
+```bash
+GOOGLE_TRANSLATE_API_KEY=your_key_here
+```
+
+For normal local development, leave the shared secret and access token settings blank.
+
+3. Start the backend from the repo root:
+
+```bash
+./script/run_backend.sh
+```
+
+4. Open `CircleToSearch.xcodeproj`
+5. Select the `CircleToSearch Open Source` scheme
+6. Build and run the app
+7. Open Settings and click `Check Status`
+8. Use the app
 
 ### Managed backend build
 
@@ -57,18 +67,6 @@ Useful commands:
 cd backend
 npm install
 npm run check
-```
-
-Local source-build fallback:
-
-```bash
-./script/run_backend.sh
-```
-
-Cloud Run deployment helper:
-
-```bash
-./script/deploy_cloud_run.sh
 ```
 
 ## Docs

@@ -33,16 +33,8 @@ struct SettingsView: View {
             }
 
             if AppRuntimeConfiguration.allowsManagedTranslationUserConfiguration {
-                Section("Run On This Mac") {
-                    SecureField(
-                        "Google Translate API key",
-                        text: Binding(
-                            get: { appModel.selfHostedGoogleAPIKey },
-                            set: { appModel.updateSelfHostedGoogleAPIKey($0) }
-                        )
-                    )
-
-                    Text("Paste your Google Translate API key once. CircleToSearch will start the local translation service automatically on this Mac. For source builds without the packaged helper, install Node.js 20+.")
+                Section("Local Backend") {
+                    Text("For source builds, run `./script/run_backend.sh` from the repo root after adding your Google Translate API key to `backend/.env`.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
 
@@ -54,26 +46,13 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    if let logLine = appModel.selfHostedBackendManager.lastLogLine, !logLine.isEmpty {
-                        Text(logLine)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .textSelection(.enabled)
-                    }
-
                     Button("Check Status") {
                         appModel.refreshSelfHostedBackendStatus()
                     }
-                    .disabled(appModel.selfHostedBackendManager.localBackendState == .starting)
 
-                    Text("When the local backend is running, CircleToSearch automatically uses http://127.0.0.1:8080.")
+                    Text("The open-source scheme expects a local backend on http://127.0.0.1:8080 by default.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
-
-                    if let error = appModel.selfHostedBackendManager.lastPersistenceError, !error.isEmpty {
-                        Text(error)
-                            .foregroundStyle(.red)
-                    }
 
                     if let error = appModel.selfHostedBackendManager.lastErrorMessage, !error.isEmpty {
                         Text(error)
@@ -105,16 +84,6 @@ struct SettingsView: View {
                             Text(error)
                                 .foregroundStyle(.red)
                         }
-
-                        Button("Open Local Backend Folder") {
-                            appModel.openLocalBackendFolder()
-                        }
-
-                        if !appModel.selfHostedBackendManager.isNodeRuntimeAvailable {
-                            Button("Download Node.js") {
-                                appModel.openNodeDownloadPage()
-                            }
-                        }
                     }
                 }
             }
@@ -124,27 +93,23 @@ struct SettingsView: View {
     }
 
     private var localBackendStatusSymbolName: String {
-        switch appModel.selfHostedBackendManager.localBackendState {
-        case .running:
+        switch appModel.selfHostedBackendManager.state {
+        case .reachable:
             return "checkmark.circle.fill"
-        case .starting:
-            return "arrow.triangle.2.circlepath.circle.fill"
-        case .failed:
+        case .unreachable:
             return "exclamationmark.triangle.fill"
-        case .notConfigured, .readyToStart:
+        case .unknown:
             return "circle.dashed"
         }
     }
 
     private var localBackendStatusColor: Color {
-        switch appModel.selfHostedBackendManager.localBackendState {
-        case .running:
+        switch appModel.selfHostedBackendManager.state {
+        case .reachable:
             return .green
-        case .starting:
-            return .orange
-        case .failed:
+        case .unreachable:
             return .red
-        case .notConfigured, .readyToStart:
+        case .unknown:
             return .secondary
         }
     }
