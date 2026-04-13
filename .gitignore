@@ -6,3 +6,4 @@ dist/
 DerivedData/
 *.xcuserstate
 xcuserdata/
+Resources/OpenSourceRuntime/circle2search-local-backend

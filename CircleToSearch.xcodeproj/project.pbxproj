@@ -10,6 +10,7 @@
 		A1000000000000000000001D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000001C /* Assets.xcassets */; };
 		A1000000000000000000001E /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000001B /* PrivacyInfo.xcprivacy */; };
 		A10000000000000000000022 /* backend in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000023 /* backend */; };
+		A10000000000000000000025 /* OpenSourceRuntime in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000026 /* OpenSourceRuntime */; };
 		A10000000000000000000301 /* CircleToSearchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000201 /* CircleToSearchApp.swift */; };
 		A10000000000000000000302 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000202 /* AppDelegate.swift */; };
 		A10000000000000000000303 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000203 /* AppModel.swift */; };
@@ -47,6 +48,7 @@
 		A1000000000000000000001F /* OpenSource.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = OpenSource.xcconfig; sourceTree = "<group>"; };
 		A10000000000000000000023 /* backend */ = {isa = PBXFileReference; lastKnownFileType = folder; path = backend; sourceTree = SOURCE_ROOT; };
 		A10000000000000000000024 /* CircleToSearchOpenSource.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CircleToSearchOpenSource.entitlements; sourceTree = "<group>"; };
+		A10000000000000000000026 /* OpenSourceRuntime */ = {isa = PBXFileReference; lastKnownFileType = folder; path = OpenSourceRuntime; sourceTree = "<group>"; };
 		A10000000000000000000201 /* CircleToSearchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircleToSearchApp.swift; sourceTree = "<group>"; };
 		A10000000000000000000202 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		A10000000000000000000203 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
@@ -119,6 +121,7 @@
 			children = (
 				A1000000000000000000001C /* Assets.xcassets */,
 				A10000000000000000000023 /* backend */,
+				A10000000000000000000026 /* OpenSourceRuntime */,
 				A10000000000000000000019 /* CircleToSearch-Info.plist */,
 				A1000000000000000000001A /* CircleToSearch.entitlements */,
 				A10000000000000000000024 /* CircleToSearchOpenSource.entitlements */,
@@ -256,6 +259,7 @@
 			files = (
 				A1000000000000000000001D /* Assets.xcassets in Resources */,
 				A10000000000000000000022 /* backend in Resources */,
+				A10000000000000000000025 /* OpenSourceRuntime in Resources */,
 				A1000000000000000000001E /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

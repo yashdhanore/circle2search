@@ -45,14 +45,20 @@ The recommended open-source flow is now:
 1. Build or download the `CircleToSearch Open Source` app
 2. Open Settings
 3. Paste your Google Translate API key once
-4. Click `Start Local Backend`
+4. Wait while CircleToSearch starts the local backend automatically
 5. Use the app
 
 In Xcode, the shared open-source scheme is:
 
 - `CircleToSearch Open Source`
 
-The old setup and start scripts are still available for manual backend work:
+Maintainers packaging the open-source app should also run:
+
+```bash
+./script/build_local_backend_helper.sh
+```
+
+The old setup and start scripts are still available for manual backend work and fallback source-build scenarios:
 
 ```bash
 ./script/setup_self_host_backend.command

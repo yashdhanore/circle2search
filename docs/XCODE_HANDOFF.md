@@ -6,7 +6,7 @@ Current repo state:
 - The app is functional as a macOS menu bar utility.
 - Local OCR is on-device with Vision.
 - Translation goes through the managed Google Cloud Translation backend.
-- Open-source builds now expose a simple `Run On This Mac` setup plus an advanced remote backend section in Settings.
+- Open-source builds now expose a simple `Run On This Mac` setup that starts the local backend automatically after the user pastes a Google API key.
 - A real Xcode project now exists in `CircleToSearch.xcodeproj`.
 - The app now has:
   - an app target
@@ -32,6 +32,8 @@ These parts are already in the right direction and should be preserved:
   - [SettingsView.swift](/Users/ydh0rs/Desktop/Personal/circle2search/Sources/Views/SettingsView.swift)
 - Local backend manager for the open-source flow:
   - [SelfHostedBackendManager.swift](/Users/ydh0rs/Desktop/Personal/circle2search/Sources/Services/SelfHostedBackendManager.swift)
+- Maintainer-side packaged runtime build script:
+  - [build_local_backend_helper.sh](/Users/ydh0rs/Desktop/Personal/circle2search/script/build_local_backend_helper.sh)
 - Debug bearer token stored in Keychain instead of `UserDefaults`:
   - [ManagedTranslationDebugStore.swift](/Users/ydh0rs/Desktop/Personal/circle2search/Sources/Models/ManagedTranslationDebugStore.swift)
   - [KeychainStore.swift](/Users/ydh0rs/Desktop/Personal/circle2search/Sources/Services/KeychainStore.swift)
@@ -72,6 +74,8 @@ These parts are now in good shape and do not need to be redone on the Xcode mach
   - `CircleToSearch Open Source`
 - A non-developer-oriented self-hosting guide now exists:
   - [SELF_HOSTING.md](/Users/ydh0rs/Desktop/Personal/circle2search/docs/SELF_HOSTING.md)
+- A packaged runtime folder now exists for the open-source build:
+  - `Resources/OpenSourceRuntime`
 
 ## Must Validate Before App Store Release
 
@@ -169,6 +173,12 @@ What to preserve:
 - settings window behavior
 - menu bar behavior
 
+Open-source packaging note:
+- Before making an open-source build for other users, run [build_local_backend_helper.sh](/Users/ydh0rs/Desktop/Personal/circle2search/script/build_local_backend_helper.sh).
+- That script generates `Resources/OpenSourceRuntime/circle2search-local-backend`.
+- The Xcode project now bundles `Resources/OpenSourceRuntime` into the app.
+- This is what removes the Node.js requirement for end users.
+
 ### Step 2. Validate required app resources
 
 Required:
@@ -238,7 +248,7 @@ Validate:
 - release builds still translate correctly
 - the `CircleToSearch Open Source` scheme shows the `Run On This Mac` section
 - the open-source build stores the Google API key in Keychain
-- the open-source build can start the bundled local backend from Settings
+- the open-source build starts the bundled local backend automatically after the user pastes a key
 - the open-source build works against a local backend on `127.0.0.1` with no token
 - the open-source build works against a remote self-hosted backend when an access token is configured
 
@@ -298,6 +308,7 @@ Verify:
 - translation works against local backend
 - translation works against deployed backend
 - missing debug token fails with a clear local auth error
+- in the open-source build, pasting a Google API key automatically starts the local backend with no extra button press
 
 ### B. Release build tests
 
@@ -324,8 +335,8 @@ Verify:
 - menu bar icon trigger works
 - global hotkey trigger works
 - both entry points run the same capture/translate flow
-- in the open-source build, `Run On This Mac` can start the local backend without using Terminal scripts
-- in the open-source build, the app reports a clear Node.js requirement when Node is missing
+- in the packaged open-source build, `Run On This Mac` works with no Node.js installed
+- in a source build without the packaged helper runtime, the app reports a clear fallback message instead of a broken flow
 - menu bar and dock are not translated
 - overlay glow is visible enough but not heavy
 - translated text renders in place and remains readable

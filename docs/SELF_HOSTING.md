@@ -7,7 +7,7 @@ The recommended setup is now the simple local flow:
 1. Open the `CircleToSearch Open Source` app.
 2. Open Settings.
 3. Paste your Google Translate API key once.
-4. Click `Start Local Backend`.
+4. Wait a moment while CircleToSearch starts the local backend automatically.
 5. Wait for the status to say the backend is running.
 6. Use the app.
 
@@ -19,7 +19,7 @@ This is the recommended path for non-developers.
 
 1. A Google Cloud project with the Cloud Translation API enabled.
 2. A Google Translate API key.
-3. Node.js 20 or newer installed on your Mac.
+3. A packaged `CircleToSearch Open Source` app that already includes the local backend runtime.
 
 ## The easiest setup
 
@@ -27,17 +27,30 @@ Use the `Run On This Mac` section in Settings.
 
 What it does:
 - stores your Google API key in macOS Keychain
-- copies the bundled backend files into Application Support
-- starts the local backend on your Mac
+- starts the bundled local backend on your Mac automatically
 - keeps CircleToSearch pointed at `http://127.0.0.1:8080`
 
 In the simple local mode, you do not need to type a backend URL or token.
 
-## If Node.js is missing
+## What normal users should download
 
-The app will tell you that Node.js 20 or newer is required.
+Normal users should download a packaged `CircleToSearch Open Source.app`.
 
-Install Node.js, then return to Settings and click `Start Local Backend` again.
+That packaged app should already include the local backend runtime.
+
+Normal users should not need:
+- Node.js
+- Terminal setup
+- backend scripts
+- manual backend start buttons
+
+## If you built the app from source instead of downloading a packaged app
+
+A source build may not include the packaged local backend runtime yet.
+
+In that case, CircleToSearch may tell you that Node.js is required.
+
+That is expected for a source build until the maintainer packages the local backend runtime into the app bundle.
 
 ## Advanced mode
 
@@ -55,7 +68,7 @@ Use that only if you want to:
 Simple local mode uses:
 - your Google Translate API key
 - Google Cloud Translation Basic
-- a backend process running on the same Mac as the app
+- a bundled local backend process running on the same Mac as the app
 
 This is the easiest setup and the recommended path for most open-source users.
 
@@ -73,7 +86,7 @@ That path supports:
 
 If your backend runs only on your own Mac:
 - you can leave the access token blank
-- the app handles the local setup for you
+- the app handles the local startup for you
 
 If you host the backend somewhere else:
 - set an access token on that backend
@@ -91,9 +104,12 @@ Check:
 ### The local backend does not start
 
 Check:
-- Node.js is installed
 - you pasted a Google API key in Settings
 - the app shows `Local backend is running on this Mac`
+
+If you are using a source build instead of a packaged Open Source app:
+- the packaged local backend runtime may not be bundled yet
+- Node.js may still be required for that source build
 
 ### I want to host the backend on another machine or server
 
@@ -110,7 +126,8 @@ If you are building the app from source in Xcode:
 
 1. Open `CircleToSearch.xcodeproj`
 2. Use the shared scheme `CircleToSearch Open Source`
-3. Build and run the app
-4. Use the same in-app `Run On This Mac` flow described above
+3. Run `./script/build_local_backend_helper.sh`
+4. Build and run the app
+5. Use the same in-app `Run On This Mac` flow described above
 
 The old setup and start scripts are still in `script/` for manual backend work, but they are no longer the recommended first path for normal open-source users.

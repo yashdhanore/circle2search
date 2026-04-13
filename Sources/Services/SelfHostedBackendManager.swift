@@ -13,6 +13,7 @@ enum SelfHostedBackendState {
 enum SelfHostedBackendError: LocalizedError {
     case missingGoogleAPIKey
     case missingBundledBackendTemplate
+    case missingBundledBackendRuntime
     case nodeRuntimeUnavailable
     case workingDirectoryUnavailable
 
@@ -22,8 +23,10 @@ enum SelfHostedBackendError: LocalizedError {
             return "Paste your Google Translate API key before starting the local backend."
         case .missingBundledBackendTemplate:
             return "This app build does not include the local backend files. Rebuild the Open Source app and try again."
+        case .missingBundledBackendRuntime:
+            return "This build does not include the packaged local backend runtime. Install Node.js for a source build, or use the packaged Open Source app."
         case .nodeRuntimeUnavailable:
-            return "Node.js 20 or newer is required to run the local backend on this Mac."
+            return "This source build needs Node.js 20 or newer because it does not include the packaged local backend runtime."
         case .workingDirectoryUnavailable:
             return "The local backend working directory could not be prepared."
         }
@@ -36,9 +39,7 @@ final class SelfHostedBackendManager {
     var googleAPIKey: String {
         didSet {
             persistGoogleAPIKey()
-            if localBackendState != .starting {
-                updateStatusForCurrentState()
-            }
+            handleGoogleAPIKeyChange()
         }
     }
 
@@ -53,12 +54,19 @@ final class SelfHostedBackendManager {
     private let fileManager: FileManager
     private let bundle: Bundle
     private let urlSession: URLSession
+    private var autoStartTask: Task<Void, Never>?
     private var backendProcess: Process?
     private var backendOutputPipe: Pipe?
     private var stopWasRequested = false
 
     private enum Keys {
         static let googleAPIKeyAccount = "openSource.selfHosted.googleAPIKey"
+    }
+
+    private struct LaunchSpec {
+        let executableURL: URL
+        let arguments: [String]
+        let workingDirectoryURL: URL
     }
 
     init(
@@ -82,22 +90,29 @@ final class SelfHostedBackendManager {
         "http://127.0.0.1:8080"
     }
 
-    var canStartLocalBackend: Bool {
-        !googleAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && localBackendState != .starting
-    }
-
-    var canStopLocalBackend: Bool {
-        backendProcess?.isRunning == true
+    private var hasBundledBackendRuntime: Bool {
+        bundledRuntimeExecutableURL() != nil
     }
 
     func start() {
         Task {
-            await refreshStatus()
+            await refreshStatus(allowAutoStart: true)
         }
     }
 
     func refreshStatus() async {
-        isNodeRuntimeAvailable = await detectNodeRuntimeAvailability()
+        await refreshStatus(allowAutoStart: false)
+    }
+
+    func refreshStatus(allowAutoStart: Bool) async {
+        let launchSpecAvailable: Bool
+        if hasBundledBackendRuntime {
+            isNodeRuntimeAvailable = true
+            launchSpecAvailable = true
+        } else {
+            isNodeRuntimeAvailable = await detectNodeRuntimeAvailability()
+            launchSpecAvailable = (try? currentLaunchSpec()) != nil
+        }
 
         if await isLocalBackendReachable() {
             localBackendState = .running
@@ -116,6 +131,14 @@ final class SelfHostedBackendManager {
             return
         }
 
+        if allowAutoStart {
+            let trimmedAPIKey = googleAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmedAPIKey.isEmpty, launchSpecAvailable {
+                await startLocalBackend()
+                return
+            }
+        }
+
         updateStatusForCurrentState()
     }
 
@@ -128,19 +151,28 @@ final class SelfHostedBackendManager {
             return
         }
 
-        isNodeRuntimeAvailable = await detectNodeRuntimeAvailability()
-        guard isNodeRuntimeAvailable else {
-            localBackendState = .failed
-            lastErrorMessage = SelfHostedBackendError.nodeRuntimeUnavailable.localizedDescription
-            statusMessage = "Node.js is required to run the local backend."
-            return
-        }
-
         if await isLocalBackendReachable(), backendProcess?.isRunning != true {
             localBackendState = .running
             statusMessage = "Local backend is already running on this Mac."
             lastErrorMessage = nil
             AppLogger.backend.info("Detected an already-running local self-hosted backend.")
+            return
+        }
+
+        if !hasBundledBackendRuntime {
+            isNodeRuntimeAvailable = await detectNodeRuntimeAvailability()
+        } else {
+            isNodeRuntimeAvailable = true
+        }
+
+        let launchSpec: LaunchSpec
+        do {
+            launchSpec = try currentLaunchSpec()
+        } catch {
+            localBackendState = .failed
+            lastErrorMessage = error.localizedDescription
+            statusMessage = "Local backend is unavailable in this build."
+            AppLogger.backend.error("Could not resolve a local backend runtime: \(error.localizedDescription)")
             return
         }
 
@@ -150,8 +182,7 @@ final class SelfHostedBackendManager {
         AppLogger.backend.info("Preparing the local self-hosted backend.")
 
         do {
-            let backendDirectory = try prepareBundledBackend()
-            try launchLocalBackend(from: backendDirectory, googleAPIKey: trimmedAPIKey)
+            try launchLocalBackend(using: launchSpec, googleAPIKey: trimmedAPIKey)
 
             let becameHealthy = await waitForLocalBackendHealth(timeoutSeconds: 8)
             if becameHealthy {
@@ -222,6 +253,37 @@ final class SelfHostedBackendManager {
         }
     }
 
+    private func handleGoogleAPIKeyChange() {
+        autoStartTask?.cancel()
+
+        let trimmedKey = googleAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !trimmedKey.isEmpty else {
+            if backendProcess?.isRunning == true {
+                stopLocalBackend()
+            }
+            updateStatusForCurrentState()
+            return
+        }
+
+        if localBackendState != .starting {
+            updateStatusForCurrentState()
+        }
+
+        autoStartTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(900))
+            guard let self else {
+                return
+            }
+
+            if Task.isCancelled {
+                return
+            }
+
+            await self.startLocalBackend()
+        }
+    }
+
     private func prepareBundledBackend() throws -> URL {
         guard let templateDirectory = bundledBackendTemplateDirectory() else {
             throw SelfHostedBackendError.missingBundledBackendTemplate
@@ -247,6 +309,47 @@ final class SelfHostedBackendManager {
         }
 
         return nil
+    }
+
+    private func bundledRuntimeExecutableURL() -> URL? {
+        let resourceCandidates = [
+            bundle.resourceURL?.appendingPathComponent("OpenSourceRuntime", isDirectory: true)
+                .appendingPathComponent("circle2search-local-backend", isDirectory: false),
+            bundle.resourceURL?.appendingPathComponent("circle2search-local-backend", isDirectory: false),
+        ]
+
+        for candidate in resourceCandidates.compactMap({ $0 }) {
+            if fileManager.isExecutableFile(atPath: candidate.path) {
+                return candidate
+            }
+        }
+
+        return nil
+    }
+
+    private func currentLaunchSpec() throws -> LaunchSpec {
+        if let bundledRuntimeExecutableURL = bundledRuntimeExecutableURL() {
+            return LaunchSpec(
+                executableURL: bundledRuntimeExecutableURL,
+                arguments: [],
+                workingDirectoryURL: bundledRuntimeExecutableURL.deletingLastPathComponent()
+            )
+        }
+
+        guard let backendDirectory = try? prepareBundledBackend() else {
+            throw SelfHostedBackendError.missingBundledBackendTemplate
+        }
+
+        let nodeRuntimeAvailable = awaitableNodeRuntimeAvailabilityCache()
+        guard nodeRuntimeAvailable else {
+            throw SelfHostedBackendError.nodeRuntimeUnavailable
+        }
+
+        return LaunchSpec(
+            executableURL: URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: ["node", "src/server.js"],
+            workingDirectoryURL: backendDirectory
+        )
     }
 
     private func workingBackendDirectory() throws -> URL {
@@ -288,7 +391,7 @@ final class SelfHostedBackendManager {
         }
     }
 
-    private func launchLocalBackend(from backendDirectory: URL, googleAPIKey: String) throws {
+    private func launchLocalBackend(using launchSpec: LaunchSpec, googleAPIKey: String) throws {
         if backendProcess?.isRunning == true {
             stopWasRequested = true
             backendProcess?.terminate()
@@ -300,9 +403,9 @@ final class SelfHostedBackendManager {
 
         let process = Process()
         let outputPipe = Pipe()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        process.arguments = ["node", "src/server.js"]
-        process.currentDirectoryURL = backendDirectory
+        process.executableURL = launchSpec.executableURL
+        process.arguments = launchSpec.arguments
+        process.currentDirectoryURL = launchSpec.workingDirectoryURL
         process.standardOutput = outputPipe
         process.standardError = outputPipe
         process.environment = makeBackendEnvironment(googleAPIKey: googleAPIKey)
@@ -341,6 +444,10 @@ final class SelfHostedBackendManager {
         environment["TRANSLATE_SHARED_SECRET"] = ""
         environment["APP_STORE_EXPECTED_BUNDLE_ID"] = AppRuntimeConfiguration.bundleIdentifier
         return environment
+    }
+
+    private func awaitableNodeRuntimeAvailabilityCache() -> Bool {
+        isNodeRuntimeAvailable
     }
 
     private func consumeBackendOutput(_ output: String) {
@@ -389,14 +496,20 @@ final class SelfHostedBackendManager {
             return
         }
 
-        if !isNodeRuntimeAvailable {
+        if bundledRuntimeExecutableURL() != nil {
             localBackendState = .readyToStart
-            statusMessage = "Node.js 20 or newer is required to run the local backend."
+            statusMessage = "CircleToSearch will start the local backend automatically on this Mac."
+            return
+        }
+
+        if !isNodeRuntimeAvailable {
+            localBackendState = .failed
+            statusMessage = "This source build needs Node.js because no packaged local backend runtime is bundled."
             return
         }
 
         localBackendState = .readyToStart
-        statusMessage = "Your local backend is ready to start on this Mac."
+        statusMessage = "This source build will start the local backend automatically using Node.js."
     }
 
     private func detectNodeRuntimeAvailability() async -> Bool {

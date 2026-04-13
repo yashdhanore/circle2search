@@ -37,12 +37,12 @@ struct SettingsView: View {
                     SecureField(
                         "Google Translate API key",
                         text: Binding(
-                            get: { appModel.selfHostedBackendManager.googleAPIKey },
-                            set: { appModel.selfHostedBackendManager.googleAPIKey = $0 }
+                            get: { appModel.selfHostedGoogleAPIKey },
+                            set: { appModel.updateSelfHostedGoogleAPIKey($0) }
                         )
                     )
 
-                    Text("Paste your Google Translate API key once. CircleToSearch will use it only for the local backend running on this Mac.")
+                    Text("Paste your Google Translate API key once. CircleToSearch will start the local translation service automatically on this Mac.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
 
@@ -61,46 +61,14 @@ struct SettingsView: View {
                             .textSelection(.enabled)
                     }
 
-                    HStack {
-                        Button(
-                            appModel.selfHostedBackendManager.canStopLocalBackend
-                                ? "Restart Local Backend"
-                                : "Start Local Backend"
-                        ) {
-                            appModel.startLocalSelfHostedBackend()
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(!appModel.selfHostedBackendManager.canStartLocalBackend)
-
-                        Button("Check Status") {
-                            appModel.refreshSelfHostedBackendStatus()
-                        }
-                        .disabled(appModel.selfHostedBackendManager.localBackendState == .starting)
-
-                        if appModel.selfHostedBackendManager.canStopLocalBackend {
-                            Button("Stop") {
-                                appModel.stopLocalSelfHostedBackend()
-                            }
-                        }
-
-                        Button("Open Backend Folder") {
-                            appModel.openLocalBackendFolder()
-                        }
+                    Button("Check Status") {
+                        appModel.refreshSelfHostedBackendStatus()
                     }
+                    .disabled(appModel.selfHostedBackendManager.localBackendState == .starting)
 
                     Text("When the local backend is running, CircleToSearch automatically uses http://127.0.0.1:8080.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
-
-                    if !appModel.selfHostedBackendManager.isNodeRuntimeAvailable {
-                        Button("Download Node.js") {
-                            appModel.openNodeDownloadPage()
-                        }
-
-                        Text("Node.js 20 or newer is required to run the local backend on your Mac.")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                    }
 
                     if let error = appModel.selfHostedBackendManager.lastPersistenceError, !error.isEmpty {
                         Text(error)
@@ -136,6 +104,16 @@ struct SettingsView: View {
                         if let error = appModel.managedTranslationDebugStore.lastPersistenceError, !error.isEmpty {
                             Text(error)
                                 .foregroundStyle(.red)
+                        }
+
+                        Button("Open Local Backend Folder") {
+                            appModel.openLocalBackendFolder()
+                        }
+
+                        if !appModel.selfHostedBackendManager.isNodeRuntimeAvailable {
+                            Button("Download Node.js") {
+                                appModel.openNodeDownloadPage()
+                            }
                         }
                     }
                 }

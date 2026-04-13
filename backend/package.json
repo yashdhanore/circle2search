@@ -11,5 +11,8 @@
   "scripts": {
     "start": "node src/server.js",
     "check": "node --check src/server.js && node --check src/config.js && node --check src/chunking.js && node --check src/googleTranslate.js && node --check src/appStoreReceiptAuth.js && node --check src/rateLimiter.js"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
   }
 }
