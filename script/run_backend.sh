@@ -16,10 +16,16 @@ if [[ -f "$BACKEND_DIR/.env" ]]; then
   set +a
 fi
 
-if [[ -z "${GOOGLE_CLOUD_PROJECT:-}" ]]; then
-  echo "GOOGLE_CLOUD_PROJECT must be set in backend/.env or the shell environment." >&2
+if [[ -z "${GOOGLE_TRANSLATE_API_KEY:-}" && -z "${GOOGLE_CLOUD_PROJECT:-}" ]]; then
+  echo "Set GOOGLE_TRANSLATE_API_KEY for the simple self-host setup, or GOOGLE_CLOUD_PROJECT for the advanced service-account setup." >&2
   exit 1
 fi
 
 cd "$BACKEND_DIR"
+
+if [[ ! -d node_modules ]]; then
+  echo "Installing backend dependencies..."
+  npm install
+fi
+
 exec npm start

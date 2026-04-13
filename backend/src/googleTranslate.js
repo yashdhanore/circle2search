@@ -8,6 +8,29 @@ class GoogleTranslateClient {
   }
 
   async translateChunk({ items, targetLanguageCode, sourceLanguageCode, labels, requestId, chunkIndex, chunkCount }) {
+    if (this.config.translationMode === 'basic_api_key') {
+      return this.translateChunkWithBasicAPIKey({
+        items,
+        targetLanguageCode,
+        sourceLanguageCode,
+        requestId,
+        chunkIndex,
+        chunkCount,
+      });
+    }
+
+    return this.translateChunkWithAdvancedAPI({
+      items,
+      targetLanguageCode,
+      sourceLanguageCode,
+      labels,
+      requestId,
+      chunkIndex,
+      chunkCount,
+    });
+  }
+
+  async translateChunkWithAdvancedAPI({ items, targetLanguageCode, sourceLanguageCode, labels, requestId, chunkIndex, chunkCount }) {
     const accessToken = await this.getAccessToken();
     const endpoint = `https://${this.config.endpoint}/v3/projects/${encodeURIComponent(this.config.projectId)}/locations/${encodeURIComponent(this.config.location)}:translateText`;
     const body = {
@@ -78,6 +101,74 @@ class GoogleTranslateClient {
       id: items[index].id,
       translatedText: String(translation?.translatedText || ''),
       detectedSourceLanguage: translation?.detectedLanguageCode || translation?.detectedSourceLanguage || null,
+    }));
+  }
+
+  async translateChunkWithBasicAPIKey({ items, targetLanguageCode, sourceLanguageCode, requestId, chunkIndex, chunkCount }) {
+    const endpoint = `https://${this.config.endpoint}/language/translate/v2?key=${encodeURIComponent(this.config.basicAPIKey)}`;
+    const body = {
+      q: items.map((item) => item.text),
+      target: targetLanguageCode,
+      format: 'text',
+    };
+
+    if (sourceLanguageCode) {
+      body.source = sourceLanguageCode;
+    }
+
+    console.info(
+      JSON.stringify({
+        level: 'info',
+        event: 'google_translate_basic_request',
+        requestId,
+        chunkIndex,
+        chunkCount,
+        endpoint: this.config.endpoint,
+        blockCount: items.length,
+        codePoints: items.reduce((sum, item) => sum + item.codePoints, 0),
+        targetLanguageCode,
+      })
+    );
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+      },
+      body: JSON.stringify(body),
+    });
+
+    const responseText = await response.text();
+    let payload = null;
+
+    if (responseText) {
+      try {
+        payload = JSON.parse(responseText);
+      } catch {
+        payload = null;
+      }
+    }
+
+    if (!response.ok) {
+      const message = payload?.error?.message || responseText || `Google Translation returned HTTP ${response.status}.`;
+      const error = new Error(message);
+      error.statusCode = response.status;
+      error.upstream = payload;
+      throw error;
+    }
+
+    const translations = Array.isArray(payload?.data?.translations) ? payload.data.translations : [];
+    if (translations.length !== items.length) {
+      const error = new Error('Google Translation returned an unexpected number of translations.');
+      error.statusCode = 502;
+      error.upstream = payload;
+      throw error;
+    }
+
+    return translations.map((translation, index) => ({
+      id: items[index].id,
+      translatedText: String(translation?.translatedText || ''),
+      detectedSourceLanguage: translation?.detectedSourceLanguage || null,
     }));
   }
 

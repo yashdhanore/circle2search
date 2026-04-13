@@ -38,6 +38,7 @@
 		A10000000000000000000012 /* CircleToSearch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CircleToSearch.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000017 /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
 		A10000000000000000000018 /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
+		A1000000000000000000001F /* OpenSource.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = OpenSource.xcconfig; sourceTree = "<group>"; };
 		A10000000000000000000019 /* CircleToSearch-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = CircleToSearch-Info.plist; sourceTree = "<group>"; };
 		A1000000000000000000001A /* CircleToSearch.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CircleToSearch.entitlements; sourceTree = "<group>"; };
 		A1000000000000000000001B /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
@@ -124,6 +125,7 @@
 			children = (
 				A10000000000000000000017 /* Debug.xcconfig */,
 				A10000000000000000000018 /* Release.xcconfig */,
+				A1000000000000000000001F /* OpenSource.xcconfig */,
 			);
 			path = Config;
 			sourceTree = "<group>";
@@ -309,6 +311,18 @@
 			};
 			name = Release;
 		};
+		A10000000000000000000020 /* OpenSource */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CODE_SIGN_STYLE = Automatic;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_VERSION = 6.0;
+			};
+			name = OpenSource;
+		};
 		A10000000000000000000015 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = A10000000000000000000017 /* Debug.xcconfig */;
@@ -343,6 +357,23 @@
 			};
 			name = Release;
 		};
+		A10000000000000000000021 /* OpenSource */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = A1000000000000000000001F /* OpenSource.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Resources/CircleToSearch.entitlements;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Resources/CircleToSearch-Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+			};
+			name = OpenSource;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -351,6 +382,7 @@
 			buildConfigurations = (
 				A10000000000000000000013 /* Debug */,
 				A10000000000000000000014 /* Release */,
+				A10000000000000000000020 /* OpenSource */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -360,6 +392,7 @@
 			buildConfigurations = (
 				A10000000000000000000015 /* Debug */,
 				A10000000000000000000016 /* Release */,
+				A10000000000000000000021 /* OpenSource */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

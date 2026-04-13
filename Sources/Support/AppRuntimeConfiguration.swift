@@ -30,14 +30,20 @@ enum RuntimeConfigurationError: LocalizedError {
 enum AppRuntimeConfiguration {
     private static let defaultBundleIdentifier = "com.circle2search.app"
     private static let managedTranslationBaseURLInfoKey = "ManagedTranslationBaseURL"
+    private static let managedTranslationAllowsUserConfigurationInfoKey = "ManagedTranslationAllowsUserConfiguration"
     private static let debugManagedTranslationBaseURL = "http://127.0.0.1:8080"
 
-    static var allowsManagedTranslationDebugOverrides: Bool {
-        #if DEBUG
-        true
-        #else
-        false
-        #endif
+    static var allowsManagedTranslationUserConfiguration: Bool {
+        let value = Bundle.main.object(forInfoDictionaryKey: managedTranslationAllowsUserConfigurationInfoKey)
+
+        switch value {
+        case let bool as Bool:
+            return bool
+        case let string as String:
+            return ["1", "true", "yes"].contains(string.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
+        default:
+            return false
+        }
     }
 
     static var keychainServiceName: String {
@@ -68,25 +74,25 @@ enum AppRuntimeConfiguration {
         debugStore: ManagedTranslationDebugStore?,
         appStoreReceiptProvider: AppStoreReceiptProvider = AppStoreReceiptProvider()
     ) throws -> ManagedTranslationConnection {
-        #if DEBUG
-        let baseURL = debugStore?.baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        let resolvedBaseURL = (baseURL?.isEmpty == false ? baseURL : nil) ?? debugManagedTranslationBaseURL
-        let bearerToken = debugStore?.bearerToken.trimmingCharacters(in: .whitespacesAndNewlines)
-        let authorization: ManagedTranslationAuthorization?
+        if allowsManagedTranslationUserConfiguration {
+            let defaultBaseURL = bundledManagedTranslationBaseURL ?? debugManagedTranslationBaseURL
+            let baseURL = debugStore?.baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+            let resolvedBaseURL = (baseURL?.isEmpty == false ? baseURL : nil) ?? defaultBaseURL
+            let bearerToken = debugStore?.bearerToken.trimmingCharacters(in: .whitespacesAndNewlines)
+            let authorization: ManagedTranslationAuthorization?
 
-        if let bearerToken, !bearerToken.isEmpty {
-            authorization = .bearerToken(bearerToken)
-        } else if let receipt = try? appStoreReceiptProvider.base64EncodedReceipt() {
-            authorization = .appStoreReceipt(receipt)
-        } else {
-            authorization = nil
+            if let bearerToken, !bearerToken.isEmpty {
+                authorization = .bearerToken(bearerToken)
+            } else {
+                authorization = nil
+            }
+
+            return ManagedTranslationConnection(
+                baseURL: resolvedBaseURL,
+                authorization: authorization
+            )
         }
 
-        return ManagedTranslationConnection(
-            baseURL: resolvedBaseURL,
-            authorization: authorization
-        )
-        #else
         guard let bundledManagedTranslationBaseURL else {
             AppLogger.settings.error(
                 "Missing \(managedTranslationBaseURLInfoKey) in the app bundle configuration."
@@ -115,6 +121,5 @@ enum AppRuntimeConfiguration {
             baseURL: bundledManagedTranslationBaseURL,
             authorization: .appStoreReceipt(receipt)
         )
-        #endif
     }
 }

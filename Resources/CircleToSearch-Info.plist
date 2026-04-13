@@ -22,6 +22,8 @@
 	<true/>
 	<key>ManagedTranslationBaseURL</key>
 	<string>$(MANAGED_TRANSLATION_BASE_URL)</string>
+	<key>ManagedTranslationAllowsUserConfiguration</key>
+	<string>$(MANAGED_TRANSLATION_ALLOW_USER_CONFIGURATION)</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 	<key>NSScreenCaptureUsageDescription</key>

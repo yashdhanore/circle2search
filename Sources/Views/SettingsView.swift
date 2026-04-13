@@ -32,38 +32,38 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            #if DEBUG
-            Section("Debug Translation Service") {
-                TextField(
-                    "http://127.0.0.1:8080",
-                    text: Binding(
-                        get: { appModel.managedTranslationDebugStore.baseURL },
-                        set: { appModel.managedTranslationDebugStore.baseURL = $0 }
+            if AppRuntimeConfiguration.allowsManagedTranslationUserConfiguration {
+                Section("Self-Hosted Translation Service") {
+                    TextField(
+                        "http://127.0.0.1:8080",
+                        text: Binding(
+                            get: { appModel.managedTranslationDebugStore.baseURL },
+                            set: { appModel.managedTranslationDebugStore.baseURL = $0 }
+                        )
                     )
-                )
 
-                Text("Use this only while developing against a local or non-production backend.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+                    Text("If your backend is running on the same Mac, you can usually leave the URL as http://127.0.0.1:8080.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
 
-                SecureField(
-                    "Bearer token (debug only)",
-                    text: Binding(
-                        get: { appModel.managedTranslationDebugStore.bearerToken },
-                        set: { appModel.managedTranslationDebugStore.bearerToken = $0 }
+                    SecureField(
+                        "Access token (optional)",
+                        text: Binding(
+                            get: { appModel.managedTranslationDebugStore.bearerToken },
+                            set: { appModel.managedTranslationDebugStore.bearerToken = $0 }
+                        )
                     )
-                )
 
-                Text("Release builds authenticate with the App Store receipt automatically. The debug bearer token is stored in the macOS Keychain and is not shown in release builds.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+                    Text("Leave the access token blank if your backend is only running on your own Mac. Add one if your backend requires it or is hosted somewhere else.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
 
-                if let error = appModel.managedTranslationDebugStore.lastPersistenceError, !error.isEmpty {
-                    Text(error)
-                        .foregroundStyle(.red)
+                    if let error = appModel.managedTranslationDebugStore.lastPersistenceError, !error.isEmpty {
+                        Text(error)
+                            .foregroundStyle(.red)
+                    }
                 }
             }
-            #endif
         }
         .formStyle(.grouped)
         .padding(20)

@@ -38,6 +38,25 @@ cp backend/.env.example backend/.env
 ./script/run_backend.sh
 ```
 
+## Self-hosted open-source setup
+
+For the easiest self-hosted setup, use:
+
+```bash
+./script/setup_self_host_backend.command
+./script/start_self_host_backend.command
+```
+
+Then open the self-hosted build of the app and leave the backend URL at `http://127.0.0.1:8080`.
+
+In Xcode, use the shared scheme:
+
+- `CircleToSearch Open Source`
+
+Detailed instructions:
+
+- [docs/SELF_HOSTING.md](./docs/SELF_HOSTING.md)
+
 ## Notes
 
 - The default global shortcut is `Control-Shift-Space`.

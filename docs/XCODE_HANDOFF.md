@@ -62,6 +62,12 @@ These parts are now in good shape and do not need to be redone on the Xcode mach
   - `Config/Release.xcconfig`
 - Release backend URL is no longer hardcoded purely in Swift source.
   - It is now provided via `ManagedTranslationBaseURL` in the bundle config.
+- An open-source/self-host configuration now exists:
+  - `Config/OpenSource.xcconfig`
+- A shared open-source Xcode scheme now exists:
+  - `CircleToSearch Open Source`
+- A non-developer-oriented self-hosting guide now exists:
+  - [SELF_HOSTING.md](/Users/ydh0rs/Desktop/Personal/circle2search/docs/SELF_HOSTING.md)
 
 ## Must Validate Before App Store Release
 
@@ -149,6 +155,7 @@ Goal:
 Recommended approach:
 - Open `CircleToSearch.xcodeproj`.
 - Confirm the `CircleToSearch` scheme is shared and selected.
+- Confirm the `CircleToSearch Open Source` scheme is also available.
 - Build Debug in Xcode.
 - Fix any machine-specific signing or toolchain issues there, not in the repo blindly.
 
@@ -216,13 +223,17 @@ Still verify in Xcode/App Store validation:
 Implement:
 - debug endpoint in `Config/Debug.xcconfig`
 - release endpoint in `Config/Release.xcconfig`
+- open-source/self-host endpoint in `Config/OpenSource.xcconfig`
 - app reads `ManagedTranslationBaseURL` from `Info.plist`
-- debug override stays debug-only
+- user backend configuration is enabled only for debug/open-source builds
 
 Validate:
 - debug builds still point locally when desired
 - release builds never expose URL or token editing
 - release builds still translate correctly
+- the `CircleToSearch Open Source` scheme shows the self-host settings section
+- the open-source build works against a local backend with no token when the backend is only running on `127.0.0.1`
+- the open-source build works against a remote self-hosted backend when an access token is configured
 
 ### Step 6. Build and validate the archive path
 

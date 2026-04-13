@@ -103,7 +103,7 @@ const server = http.createServer(async (req, res) => {
     });
 
     sendJson(res, 200, {
-      provider: 'google-cloud-nmt',
+      provider: providerName(config),
       region: config.location,
       blocks: translatedBlocks,
     }, requestId);
@@ -133,6 +133,7 @@ server.listen(config.port, () => {
       level: 'info',
       event: 'server_listening',
       port: config.port,
+      translationMode: config.translationMode,
       endpoint: config.endpoint,
       location: config.location,
     })
@@ -266,7 +267,38 @@ async function authorizeRequest(req, config, receiptAuthorizer) {
     return receiptAuthorizer.authorize(receiptHeader);
   }
 
+  if (config.allowLocalhostWithoutAuth && isLocalLoopbackRequest(req)) {
+    return {
+      scheme: 'local_loopback',
+      subjectKey: `local:${normalizeRemoteAddress(req.socket.remoteAddress)}`,
+      subjectDescription: normalizeRemoteAddress(req.socket.remoteAddress),
+    };
+  }
+
   return null;
+}
+
+function isLocalLoopbackRequest(req) {
+  const remoteAddress = normalizeRemoteAddress(req.socket?.remoteAddress);
+  return remoteAddress === '127.0.0.1' || remoteAddress === '::1';
+}
+
+function normalizeRemoteAddress(value) {
+  if (typeof value !== 'string') {
+    return '<unknown>';
+  }
+
+  if (value.startsWith('::ffff:')) {
+    return value.slice('::ffff:'.length);
+  }
+
+  return value;
+}
+
+function providerName(config) {
+  return config.translationMode === 'basic_api_key'
+    ? 'google-cloud-translate-basic'
+    : 'google-cloud-nmt';
 }
 
 function readBody(req, maxBytes) {

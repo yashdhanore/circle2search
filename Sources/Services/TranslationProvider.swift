@@ -70,10 +70,6 @@ struct ManagedTranslationProvider: TextTranslationProvider {
             throw TranslationProviderError.invalidBaseURL
         }
 
-        guard authorization != nil else {
-            throw TranslationProviderError.missingAuthorization
-        }
-
         let requestBlocks = request.items.compactMap { item -> ManagedTranslationRequestBlock? in
             let trimmedText = item.text.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -204,7 +200,6 @@ struct ManagedTranslationProvider: TextTranslationProvider {
 
 enum TranslationProviderError: LocalizedError {
     case invalidBaseURL
-    case missingAuthorization
     case invalidResponse(String)
     case httpFailure(statusCode: Int, message: String)
 
@@ -212,8 +207,6 @@ enum TranslationProviderError: LocalizedError {
         switch self {
         case .invalidBaseURL:
             return "The managed translation service URL is not valid."
-        case .missingAuthorization:
-            return "The managed translation service is not authorized. In debug builds, configure the debug bearer token or test with an App Store receipt-backed build."
         case let .invalidResponse(message):
             return message
         case let .httpFailure(statusCode, message):
