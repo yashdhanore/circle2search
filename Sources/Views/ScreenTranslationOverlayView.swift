@@ -61,7 +61,9 @@ struct ScreenTranslationOverlayView: View {
                 Button("Translate") {
                     appModel.activateTranslatedScreen()
                 }
-                .buttonStyle(session.displayMode == .translated ? .borderedProminent : .borderedProminent)
+                .buttonStyle(.borderedProminent)
+                .disabled(!canTranslate(session))
+                .keyboardShortcut(.defaultAction)
 
                 Button("Original") {
                     appModel.showOriginalScreen()
@@ -73,6 +75,7 @@ struct ScreenTranslationOverlayView: View {
                     appModel.closeCurrentScreenSession()
                 }
                 .buttonStyle(.bordered)
+                .keyboardShortcut(.cancelAction)
 
                 Text(appModel.settingsStore.targetLanguage.displayName)
                     .font(.caption.weight(.medium))
@@ -101,6 +104,8 @@ struct ScreenTranslationOverlayView: View {
                 .strokeBorder(.white.opacity(0.18), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.18), radius: 22, y: 10)
+        .animation(.easeInOut(duration: 0.18), value: session.phase)
+        .animation(.easeInOut(duration: 0.18), value: session.displayMode)
     }
 
     private func statusText(for session: ScreenTranslationSession) -> String {
@@ -130,6 +135,18 @@ struct ScreenTranslationOverlayView: View {
         }
 
         return .secondary
+    }
+
+    private func canTranslate(_ session: ScreenTranslationSession) -> Bool {
+        guard session.phase != .analyzing, session.phase != .translating else {
+            return false
+        }
+
+        guard session.hasRecognizedText else {
+            return false
+        }
+
+        return session.displayMode != .translated || !session.hasRenderedTranslation
     }
 }
 

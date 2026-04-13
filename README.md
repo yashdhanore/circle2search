@@ -72,12 +72,11 @@ npm run check
 ## Docs
 
 - [docs/SELF_HOSTING.md](./docs/SELF_HOSTING.md): open-source developer setup
-- [docs/XCODE_HANDOFF.md](./docs/XCODE_HANDOFF.md): Xcode-machine checklist for this repo
 
 ## Repo Layout
 
 - `Sources/`: macOS app source
-- `Resources/`: plist, entitlements, assets, packaged helper resources
+- `Resources/`: plist, entitlements, assets, and bundle resources
 - `Config/`: Xcode build configuration files
 - `backend/`: translation backend
-- `script/`: local build and backend helper scripts
+- `script/`: local backend and packaging scripts

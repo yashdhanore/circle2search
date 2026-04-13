@@ -4,18 +4,12 @@ import Observation
 @MainActor
 @Observable
 final class SettingsStore {
-    var searchEngineTemplate: String {
-        didSet { persist(searchEngineTemplate, for: Keys.searchEngineTemplate) }
-    }
-
     var targetLanguageCode: String {
         didSet { persist(targetLanguageCode, for: Keys.targetLanguageCode) }
     }
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        self.searchEngineTemplate = defaults.string(forKey: Keys.searchEngineTemplate)
-            ?? "https://www.google.com/search?q={query}"
         let defaultLanguage = TranslationLanguage.english.rawValue
         self.targetLanguageCode = defaults.string(forKey: Keys.targetLanguageCode)
             ?? defaultLanguage
@@ -24,7 +18,6 @@ final class SettingsStore {
     private let defaults: UserDefaults
 
     private enum Keys {
-        static let searchEngineTemplate = "settings.searchEngineTemplate"
         static let targetLanguageCode = "settings.targetLanguageCode"
     }
 

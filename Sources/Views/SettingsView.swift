@@ -34,7 +34,7 @@ struct SettingsView: View {
 
             if AppRuntimeConfiguration.allowsManagedTranslationUserConfiguration {
                 Section("Local Backend") {
-                    Text("For source builds, run `./script/run_backend.sh` from the repo root after adding your Google Translate API key to `backend/.env`.")
+                    Text("For source builds, add your Google Translate API key to `backend/.env`, run `./script/run_backend.sh`, then use `Check Status`.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
 
