@@ -276,9 +276,10 @@ final class AppModel {
         return true
     }
 
-    func nudgeSelection(_ direction: SelectionNudgeDirection, amount: CGFloat) {
+    @discardableResult
+    func nudgeSelection(_ direction: SelectionNudgeDirection, amount: CGFloat) -> Bool {
         guard var session = currentScreenSession, let selection = session.selection else {
-            return
+            return false
         }
 
         let delta = direction.offset(distance: amount)
@@ -308,7 +309,12 @@ final class AppModel {
             in: session
         )
 
+        guard committed != session.selection else {
+            return false
+        }
+
         applySelection(committed, to: &session)
+        return true
     }
 
     func showOriginalScreen() {
@@ -337,17 +343,13 @@ final class AppModel {
 
         switch event.keyCode {
         case 123:
-            nudgeSelection(.left, amount: step)
-            return true
+            return nudgeSelection(.left, amount: step)
         case 124:
-            nudgeSelection(.right, amount: step)
-            return true
+            return nudgeSelection(.right, amount: step)
         case 125:
-            nudgeSelection(.down, amount: step)
-            return true
+            return nudgeSelection(.down, amount: step)
         case 126:
-            nudgeSelection(.up, amount: step)
-            return true
+            return nudgeSelection(.up, amount: step)
         default:
             return false
         }
