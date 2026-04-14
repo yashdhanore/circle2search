@@ -73,7 +73,7 @@ final class SearchLauncherCoordinator {
 
 @MainActor
 private final class SearchLauncherPanelController: NSObject, NSWindowDelegate {
-    private let panelSize = NSSize(width: 580, height: 248)
+    private let panelSize = NSSize(width: 640, height: 288)
     private let panel: SearchLauncherPanel
     private var isClosing = false
 
