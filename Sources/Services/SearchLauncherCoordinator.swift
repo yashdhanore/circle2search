@@ -73,7 +73,7 @@ final class SearchLauncherCoordinator {
 
 @MainActor
 private final class SearchLauncherPanelController: NSObject, NSWindowDelegate {
-    private let panelSize = NSSize(width: 640, height: 288)
+    private let panelSize = NSSize(width: 700, height: 360)
     private let panel: SearchLauncherPanel
     private var isClosing = false
 
@@ -95,7 +95,7 @@ private final class SearchLauncherPanelController: NSObject, NSWindowDelegate {
         panel.level = .statusBar
         panel.backgroundColor = .clear
         panel.isOpaque = false
-        panel.hasShadow = false
+        panel.hasShadow = true
         panel.hidesOnDeactivate = false
         panel.isMovableByWindowBackground = true
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle, .transient]

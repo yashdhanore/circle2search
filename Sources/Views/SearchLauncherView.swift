@@ -6,21 +6,31 @@ struct SearchLauncherView: View {
     @FocusState private var isQueryFocused: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        ZStack {
+            Color.clear
+
+            launcherShell
+                .padding(18)
+        }
+        .onAppear {
+            Task { @MainActor in
+                isQueryFocused = true
+            }
+        }
+    }
+
+    private var launcherShell: some View {
+        VStack(alignment: .leading, spacing: 22) {
             topBar
             hero
             searchField
             actionRail
             footer
         }
-        .padding(26)
+        .padding(.horizontal, 28)
+        .padding(.vertical, 26)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(launcherBackground)
-        .onAppear {
-            Task { @MainActor in
-                isQueryFocused = true
-            }
-        }
     }
 
     private var topBar: some View {
@@ -37,10 +47,10 @@ struct SearchLauncherView: View {
                 .padding(.horizontal, 11)
                 .padding(.vertical, 7)
                 .background(.thinMaterial, in: Capsule())
-                .overlay(
+                .overlay {
                     Capsule()
-                        .strokeBorder(.white.opacity(0.14), lineWidth: 1)
-                )
+                        .strokeBorder(.white.opacity(0.12), lineWidth: 1)
+                }
         }
     }
 
@@ -74,6 +84,7 @@ struct SearchLauncherView: View {
             .textFieldStyle(.plain)
             .focused($isQueryFocused)
             .font(.system(size: 21, weight: .medium, design: .rounded))
+            .submitLabel(.search)
             .onSubmit {
                 appModel.submitLauncherSearch()
             }
@@ -97,17 +108,18 @@ struct SearchLauncherView: View {
             .keyboardShortcut(.defaultAction)
         }
         .padding(.horizontal, 18)
-        .padding(.vertical, 16)
+        .padding(.vertical, 15)
         .background(.ultraThinMaterial, in: Capsule())
-        .overlay(
+        .overlay {
             Capsule()
-                .strokeBorder(.white.opacity(0.18), lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.06), radius: 14, y: 8)
+                .strokeBorder(.white.opacity(0.13), lineWidth: 1)
+        }
+        .shadow(color: .white.opacity(0.06), radius: 18, y: -2)
+        .shadow(color: .black.opacity(0.08), radius: 16, y: 8)
     }
 
     private var actionRail: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 12) {
             LauncherActionButton(
                 title: "Search Screen",
                 subtitle: "Drag to select text, images, or UI from the current display.",
@@ -115,10 +127,6 @@ struct SearchLauncherView: View {
             ) {
                 appModel.launchScreenSearchFromLauncher()
             }
-
-            Divider()
-                .overlay(.white.opacity(0.08))
-                .padding(.vertical, 12)
 
             LauncherActionButton(
                 title: "Translate Screen",
@@ -128,11 +136,6 @@ struct SearchLauncherView: View {
                 appModel.launchScreenTranslateFromLauncher()
             }
         }
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .strokeBorder(.white.opacity(0.14), lineWidth: 1)
-        )
     }
 
     private var footer: some View {
@@ -153,20 +156,20 @@ struct SearchLauncherView: View {
     }
 
     private var launcherBackground: some View {
-        RoundedRectangle(cornerRadius: 34, style: .continuous)
+        RoundedRectangle(cornerRadius: 40, style: .continuous)
             .fill(.regularMaterial)
             .overlay {
-                RoundedRectangle(cornerRadius: 34, style: .continuous)
-                    .strokeBorder(.white.opacity(0.2), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 40, style: .continuous)
+                    .strokeBorder(.white.opacity(0.12), lineWidth: 1)
             }
             .overlay {
-                RoundedRectangle(cornerRadius: 34, style: .continuous)
+                RoundedRectangle(cornerRadius: 40, style: .continuous)
                     .fill(
                         LinearGradient(
                             colors: [
-                                Color.white.opacity(0.1),
+                                Color.white.opacity(0.08),
                                 Color.clear,
-                                Color(nsColor: .controlAccentColor).opacity(0.08)
+                                Color(nsColor: .controlAccentColor).opacity(0.05)
                             ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
@@ -175,19 +178,20 @@ struct SearchLauncherView: View {
             }
             .overlay(alignment: .topLeading) {
                 Circle()
-                    .fill(Color(nsColor: .controlAccentColor).opacity(0.16))
-                    .frame(width: 220, height: 220)
-                    .blur(radius: 80)
-                    .offset(x: -28, y: -86)
+                    .fill(Color(nsColor: .controlAccentColor).opacity(0.11))
+                    .frame(width: 240, height: 240)
+                    .blur(radius: 86)
+                    .offset(x: -34, y: -92)
             }
             .overlay(alignment: .bottomTrailing) {
                 Circle()
-                    .fill(Color.white.opacity(0.08))
-                    .frame(width: 180, height: 180)
-                    .blur(radius: 60)
-                    .offset(x: 52, y: 54)
+                    .fill(Color.white.opacity(0.05))
+                    .frame(width: 200, height: 200)
+                    .blur(radius: 70)
+                    .offset(x: 46, y: 52)
             }
-            .shadow(color: .black.opacity(0.22), radius: 34, y: 18)
+            .shadow(color: .black.opacity(0.1), radius: 8, y: 1)
+            .shadow(color: .black.opacity(0.2), radius: 36, y: 20)
     }
 
     private var trimmedQuery: String {
@@ -206,7 +210,7 @@ private struct LauncherActionButton: View {
             HStack(alignment: .top, spacing: 14) {
                 ZStack {
                     Circle()
-                        .fill(Color.accentColor.opacity(0.12))
+                        .fill(Color.accentColor.opacity(0.1))
 
                     Image(systemName: systemImage)
                         .font(.title3.weight(.semibold))
@@ -225,10 +229,16 @@ private struct LauncherActionButton: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: 98, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: 102, alignment: .leading)
             .padding(.horizontal, 18)
             .padding(.vertical, 16)
-            .contentShape(Rectangle())
+            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 30, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 30, style: .continuous)
+                    .strokeBorder(.white.opacity(0.1), lineWidth: 1)
+            }
+            .shadow(color: .white.opacity(0.03), radius: 10, y: -1)
+            .contentShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
         }
         .buttonStyle(.plain)
     }
