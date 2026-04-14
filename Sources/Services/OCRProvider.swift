@@ -117,33 +117,7 @@ struct VisionVisualQueryProvider: VisualQueryProvider, Sendable {
             try handler.perform([request])
 
             let observations = request.results ?? []
-            var labels: [String] = []
-            var seenLabels = Set<String>()
-
-            for observation in observations {
-                guard observation.confidence >= 0.08 else {
-                    continue
-                }
-
-                let normalizedLabel = observation.identifier
-                    .replacingOccurrences(of: "_", with: " ")
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-
-                guard !normalizedLabel.isEmpty else {
-                    continue
-                }
-
-                let dedupeKey = normalizedLabel.lowercased()
-                guard seenLabels.insert(dedupeKey).inserted else {
-                    continue
-                }
-
-                labels.append(normalizedLabel)
-
-                if labels.count == 4 {
-                    break
-                }
-            }
+            let labels = prioritizedLabels(from: observations)
 
             guard !labels.isEmpty else {
                 throw VisualQueryError.noRecognizedSubject
@@ -155,5 +129,58 @@ struct VisionVisualQueryProvider: VisualQueryProvider, Sendable {
 
             return VisualQueryResult(labels: labels)
         }.value
+    }
+
+    private func prioritizedLabels(from observations: [VNClassificationObservation]) -> [String] {
+        let suppressedLabels: Set<String> = [
+            "screenshot",
+            "web site",
+            "website",
+            "font",
+            "display",
+            "electronic device",
+            "graphic design",
+            "text",
+            "screen",
+            "monitor",
+            "television"
+        ]
+
+        let candidates = observations.compactMap { observation -> (String, Float)? in
+            let normalizedLabel = observation.identifier
+                .replacingOccurrences(of: "_", with: " ")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+
+            guard !normalizedLabel.isEmpty else {
+                return nil
+            }
+
+            let dedupeKey = normalizedLabel.lowercased()
+            guard !suppressedLabels.contains(dedupeKey) else {
+                return nil
+            }
+
+            return (normalizedLabel, observation.confidence)
+        }
+
+        var labels: [String] = []
+        var seenLabels = Set<String>()
+
+        for minimumConfidence in [Float(0.16), Float(0.1), Float(0.06)] {
+            for (label, confidence) in candidates where confidence >= minimumConfidence {
+                let dedupeKey = label.lowercased()
+                guard seenLabels.insert(dedupeKey).inserted else {
+                    continue
+                }
+
+                labels.append(label)
+
+                if labels.count == 3 {
+                    return labels
+                }
+            }
+        }
+
+        return labels
     }
 }

@@ -36,6 +36,7 @@ private struct CaptureCanvasView: View {
     let session: ScreenTranslationSession
 
     @State private var dragContext: SelectionDragContext?
+    @State private var hoverRole: SelectionHoverRole?
 
     var body: some View {
         GeometryReader { proxy in
@@ -63,7 +64,11 @@ private struct CaptureCanvasView: View {
                     )
                     .allowsHitTesting(false)
 
-                    SelectionOutlineView(selection: selection)
+                    SelectionOutlineView(
+                        selection: selection,
+                        hoveredHandle: hoverRole?.handle,
+                        isBodyHovered: hoverRole == .selectionBody
+                    )
                         .allowsHitTesting(false)
                 }
 
@@ -75,6 +80,17 @@ private struct CaptureCanvasView: View {
             .contentShape(Rectangle())
             .gesture(selectionGesture(in: session.snapshot.visibleContentLocalRect))
             .allowsHitTesting(session.phase != .searching && session.phase != .translating)
+            .onContinuousHover(coordinateSpace: .local) { phase in
+                switch phase {
+                case let .active(location):
+                    let nextRole = hoverRole(at: location)
+                    hoverRole = nextRole
+                    cursor(for: nextRole).set()
+                case .ended:
+                    hoverRole = nil
+                    NSCursor.arrow.set()
+                }
+            }
             .clipped()
         }
     }
@@ -165,6 +181,33 @@ private struct CaptureCanvasView: View {
                     mode: dragContext.selectionMode
                 )
             }
+    }
+
+    private func hoverRole(at location: CGPoint) -> SelectionHoverRole? {
+        guard let selection = session.selection else {
+            return nil
+        }
+
+        if let handle = SelectionHandle.allCases.first(where: { $0.hitRect(in: selection.rect).contains(location) }) {
+            return .handle(handle)
+        }
+
+        if selection.rect.contains(location) {
+            return .selectionBody
+        }
+
+        return nil
+    }
+
+    private func cursor(for role: SelectionHoverRole?) -> NSCursor {
+        switch role {
+        case let .handle(handle):
+            return handle.cursor
+        case .selectionBody:
+            return .openHand
+        case .none:
+            return .arrow
+        }
     }
 }
 
@@ -379,6 +422,8 @@ private struct SelectionFocusMaskView: View {
 
 private struct SelectionOutlineView: View {
     let selection: ScreenSelection
+    let hoveredHandle: SelectionHandle?
+    let isBodyHovered: Bool
 
     private let accentColor = Color(nsColor: .controlAccentColor)
 
@@ -399,28 +444,29 @@ private struct SelectionOutlineView: View {
                 .position(x: selection.rect.midX, y: selection.rect.midY)
                 .overlay {
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.14), lineWidth: 0.8)
+                        .strokeBorder(Color.white.opacity(isBodyHovered ? 0.22 : 0.14), lineWidth: isBodyHovered ? 1 : 0.8)
                         .frame(width: selection.rect.width, height: selection.rect.height)
                         .position(x: selection.rect.midX, y: selection.rect.midY)
                 }
-                .shadow(color: .white.opacity(0.08), radius: 18)
-                .shadow(color: accentColor.opacity(selection.mode == .textCluster ? 0.18 : 0.12), radius: 24)
+                .shadow(color: .white.opacity(isBodyHovered ? 0.12 : 0.08), radius: isBodyHovered ? 24 : 18)
+                .shadow(color: accentColor.opacity(selection.mode == .textCluster ? 0.22 : (isBodyHovered ? 0.16 : 0.12)), radius: isBodyHovered ? 28 : 24)
 
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .strokeBorder(
-                    accentColor.opacity(selection.mode == .textCluster ? 0.24 : 0.14),
-                    lineWidth: selection.mode == .textCluster ? 1.1 : 0.8
+                    accentColor.opacity(selection.mode == .textCluster ? 0.28 : (isBodyHovered ? 0.18 : 0.14)),
+                    lineWidth: selection.mode == .textCluster ? 1.15 : (isBodyHovered ? 0.95 : 0.8)
                 )
                 .frame(width: selection.rect.width, height: selection.rect.height)
                 .position(x: selection.rect.midX, y: selection.rect.midY)
-                .shadow(color: accentColor.opacity(0.18), radius: 20)
+                .shadow(color: accentColor.opacity(isBodyHovered ? 0.24 : 0.18), radius: isBodyHovered ? 24 : 20)
 
             ForEach(SelectionCorner.allCases, id: \.self) { corner in
                 SelectionCornerBracketView(
                     corner: corner,
                     rect: selection.rect,
                     color: accentColor,
-                    mode: selection.mode
+                    mode: selection.mode,
+                    isHighlighted: hoveredHandle?.corner == corner || isBodyHovered
                 )
             }
 
@@ -429,11 +475,14 @@ private struct SelectionOutlineView: View {
                     SelectionEdgeHandleView(
                         handle: handle,
                         rect: selection.rect,
-                        color: accentColor
+                        color: accentColor,
+                        isHighlighted: hoveredHandle == handle || isBodyHovered
                     )
                 }
             }
         }
+        .animation(.easeInOut(duration: 0.12), value: hoveredHandle)
+        .animation(.easeInOut(duration: 0.12), value: isBodyHovered)
     }
 }
 
@@ -449,24 +498,25 @@ private struct SelectionCornerBracketView: View {
     let rect: CGRect
     let color: Color
     let mode: ScreenSelectionMode
+    let isHighlighted: Bool
 
     private var length: CGFloat {
         min(max(min(rect.width, rect.height) * 0.18, 18), 34)
     }
 
     private var lineWidth: CGFloat {
-        mode == .textCluster ? 2.6 : 2.2
+        mode == .textCluster ? (isHighlighted ? 3 : 2.6) : (isHighlighted ? 2.6 : 2.2)
     }
 
     var body: some View {
         ZStack {
             bracketPath
-                .stroke(Color.white.opacity(0.34), style: StrokeStyle(lineWidth: lineWidth + 0.8, lineCap: .round, lineJoin: .round))
+                .stroke(Color.white.opacity(isHighlighted ? 0.48 : 0.34), style: StrokeStyle(lineWidth: lineWidth + 0.8, lineCap: .round, lineJoin: .round))
                 .blur(radius: 0.25)
 
             bracketPath
-                .stroke(color.opacity(mode == .textCluster ? 0.98 : 0.9), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round))
-                .shadow(color: color.opacity(0.28), radius: 12)
+                .stroke(color.opacity(mode == .textCluster ? 0.98 : (isHighlighted ? 0.96 : 0.9)), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round))
+                .shadow(color: color.opacity(isHighlighted ? 0.36 : 0.28), radius: isHighlighted ? 16 : 12)
         }
     }
 
@@ -498,27 +548,28 @@ private struct SelectionEdgeHandleView: View {
     let handle: SelectionHandle
     let rect: CGRect
     let color: Color
+    let isHighlighted: Bool
 
     var body: some View {
         RoundedRectangle(cornerRadius: 999, style: .continuous)
             .fill(
                 LinearGradient(
                     colors: [
-                        Color.white.opacity(0.88),
-                        color.opacity(0.42)
+                        Color.white.opacity(isHighlighted ? 0.96 : 0.88),
+                        color.opacity(isHighlighted ? 0.6 : 0.42)
                     ],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
             )
-            .frame(width: handle.isVertical ? 4 : 18, height: handle.isVertical ? 18 : 4)
+            .frame(width: handle.isVertical ? 4 : (isHighlighted ? 20 : 18), height: handle.isVertical ? (isHighlighted ? 20 : 18) : 4)
             .overlay {
                 RoundedRectangle(cornerRadius: 999, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.35), lineWidth: 0.6)
+                    .strokeBorder(Color.white.opacity(isHighlighted ? 0.46 : 0.35), lineWidth: isHighlighted ? 0.8 : 0.6)
             }
             .position(handle.position(in: rect))
-            .shadow(color: color.opacity(0.18), radius: 8)
-            .opacity(0.92)
+            .shadow(color: color.opacity(isHighlighted ? 0.28 : 0.18), radius: isHighlighted ? 12 : 8)
+            .opacity(isHighlighted ? 1 : 0.92)
     }
 }
 
@@ -552,6 +603,32 @@ private enum SelectionHandle: CaseIterable {
         }
     }
 
+    var corner: SelectionCorner? {
+        switch self {
+        case .topLeft:
+            return .topLeft
+        case .topRight:
+            return .topRight
+        case .bottomRight:
+            return .bottomRight
+        case .bottomLeft:
+            return .bottomLeft
+        case .top, .trailing, .bottom, .leading:
+            return nil
+        }
+    }
+
+    var cursor: NSCursor {
+        switch self {
+        case .top, .bottom:
+            return .resizeUpDown
+        case .trailing, .leading:
+            return .resizeLeftRight
+        case .topLeft, .bottomRight, .topRight, .bottomLeft:
+            return .crosshair
+        }
+    }
+
     func position(in rect: CGRect) -> CGPoint {
         switch self {
         case .topLeft:
@@ -582,6 +659,20 @@ private enum SelectionHandle: CaseIterable {
             ),
             size: CGSize(width: handleSize, height: handleSize)
         )
+    }
+}
+
+private enum SelectionHoverRole: Equatable {
+    case handle(SelectionHandle)
+    case selectionBody
+
+    var handle: SelectionHandle? {
+        switch self {
+        case let .handle(handle):
+            return handle
+        case .selectionBody:
+            return nil
+        }
     }
 }
 
