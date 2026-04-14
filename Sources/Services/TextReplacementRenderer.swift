@@ -5,7 +5,8 @@ import Foundation
 struct TextReplacementRenderer {
     func render(
         snapshot: CapturedDisplaySnapshot,
-        translatedBlocks: [TranslatedTextBlock]
+        translatedBlocks: [TranslatedTextBlock],
+        clipRect: CGRect? = nil
     ) -> [RenderableTranslationBlock] {
         translatedBlocks.compactMap { block in
             let trimmedTranslation = block.translatedText
@@ -21,9 +22,18 @@ struct TextReplacementRenderer {
 
             let horizontalPadding = max(4, min(block.localRect.width * 0.08, 14))
             let verticalPadding = max(2, min(block.localRect.height * 0.2, 8))
-            let renderRect = block.localRect
+            let unclippedRect = block.localRect
                 .insetBy(dx: -horizontalPadding, dy: -verticalPadding)
                 .integral
+            let renderRect = clipRect.map { unclippedRect.intersection($0).integral } ?? unclippedRect
+
+            guard
+                !renderRect.isNull,
+                renderRect.width >= 16,
+                renderRect.height >= 10
+            else {
+                return nil
+            }
 
             let backgroundColor = averageBackgroundColor(
                 in: snapshot.imageRect(for: renderRect),
@@ -35,6 +45,8 @@ struct TextReplacementRenderer {
             let fontSize = max(12, min(block.localRect.height * 0.78, 36))
             let maximumLineCount = max(1, Int((renderRect.height / max(fontSize * 1.12, 1)).rounded(.up)))
             let cornerRadius = min(12, max(4, renderRect.height * 0.24))
+            let resolvedHorizontalPadding = min(horizontalPadding, max(3, renderRect.width * 0.14))
+            let resolvedVerticalPadding = min(verticalPadding, max(2, renderRect.height * 0.18))
 
             return RenderableTranslationBlock(
                 id: block.id,
@@ -43,8 +55,8 @@ struct TextReplacementRenderer {
                 backgroundColor: resolvedBackgroundColor,
                 foregroundColor: foregroundColor,
                 fontSize: fontSize,
-                horizontalPadding: horizontalPadding,
-                verticalPadding: verticalPadding,
+                horizontalPadding: resolvedHorizontalPadding,
+                verticalPadding: resolvedVerticalPadding,
                 cornerRadius: cornerRadius,
                 maximumLineCount: maximumLineCount
             )
