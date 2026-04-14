@@ -106,11 +106,34 @@ enum ScreenTranslationDisplayMode: Equatable {
     case translated
 }
 
+enum ScreenTranslationScope: Equatable {
+    case screen
+    case selection
+}
+
+enum ScreenSelectionMode: Equatable {
+    case rectangle
+    case textCluster
+}
+
+struct ScreenSelection: Equatable {
+    var rect: CGRect
+    var mode: ScreenSelectionMode
+}
+
+struct SelectedTextContext {
+    let blocks: [RecognizedTextBlock]
+    let queryText: String
+    let unionRect: CGRect
+}
+
 struct ScreenTranslationSession: Identifiable {
     let id = UUID()
     let snapshot: CapturedDisplaySnapshot
     var phase: ScreenTranslationPhase = .analyzing
     var displayMode: ScreenTranslationDisplayMode = .original
+    var translationScope: ScreenTranslationScope?
+    var selection: ScreenSelection?
     var recognizedBlocks: [RecognizedTextBlock] = []
     var renderedBlocks: [RenderableTranslationBlock] = []
     var errorMessage: String?
@@ -122,5 +145,9 @@ struct ScreenTranslationSession: Identifiable {
 
     var hasRenderedTranslation: Bool {
         !renderedBlocks.isEmpty
+    }
+
+    var hasSelection: Bool {
+        selection != nil
     }
 }

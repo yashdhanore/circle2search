@@ -8,7 +8,7 @@ struct SettingsView: View {
             Section("Shortcut") {
                 LabeledContent("Global Shortcut", value: GlobalHotkeyService.defaultShortcutDescription)
 
-                Text("Use the shortcut or the menu bar icon to open instant translate mode for the visible screen.")
+                Text("Use the shortcut or the menu bar icon to open search or translate mode for the visible screen.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
