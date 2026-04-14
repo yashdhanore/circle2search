@@ -17,6 +17,7 @@ final class AppModel {
     private let overlayCoordinator: ScreenTranslationOverlayCoordinator
     private let screenCaptureService: ScreenCaptureService
     private let ocrProvider: VisionOCRProvider
+    private let visualSearchProvider: VisualQueryProvider
     private let textReplacementRenderer: TextReplacementRenderer
     private let settingsWindowController: SettingsWindowController
     private var statusItemController: StatusItemController?
@@ -29,6 +30,7 @@ final class AppModel {
         overlayCoordinator: ScreenTranslationOverlayCoordinator,
         screenCaptureService: ScreenCaptureService,
         ocrProvider: VisionOCRProvider,
+        visualSearchProvider: VisualQueryProvider,
         textReplacementRenderer: TextReplacementRenderer,
         settingsWindowController: SettingsWindowController
     ) {
@@ -39,6 +41,7 @@ final class AppModel {
         self.overlayCoordinator = overlayCoordinator
         self.screenCaptureService = screenCaptureService
         self.ocrProvider = ocrProvider
+        self.visualSearchProvider = visualSearchProvider
         self.textReplacementRenderer = textReplacementRenderer
         self.settingsWindowController = settingsWindowController
     }
@@ -85,30 +88,9 @@ final class AppModel {
     }
 
     func activateSearchSelection() {
-        guard let session = currentScreenSession else {
-            AppLogger.app.debug("Ignored search action because no screen session is active.")
-            return
+        Task {
+            await performSearchSelection()
         }
-
-        guard let context = selectedTextContext(for: session) else {
-            AppLogger.app.debug("Ignored search action because there is no valid text selection.")
-            return
-        }
-
-        guard let url = searchURL(for: context.queryText) else {
-            AppLogger.app.error("Failed to build a search URL for the selected text.")
-            lastErrorMessage = "The selected text could not be searched."
-            statusMessage = "Search failed."
-            return
-        }
-
-        statusMessage = "Opening search results..."
-        lastErrorMessage = nil
-        AppLogger.app.info(
-            "Opening browser handoff search for \(context.blocks.count) selected block(s)."
-        )
-        NSWorkspace.shared.open(url)
-        closeCurrentScreenSession()
     }
 
     func activateTranslatedScreen() {
@@ -138,6 +120,16 @@ final class AppModel {
             return
         }
 
+        if session.hasRenderedTranslation, session.translationScope == .selection {
+            var updatedSession = session
+            updatedSession.displayMode = .translated
+            updatedSession.errorMessage = nil
+            currentScreenSession = updatedSession
+            refreshStatusMessage(for: updatedSession)
+            AppLogger.translation.info("Reused cached selection translation for session \(session.id.uuidString).")
+            return
+        }
+
         guard let context = selectedTextContext(for: session) else {
             AppLogger.translation.debug("Ignored selection translation because there is no valid text selection.")
             return
@@ -152,17 +144,83 @@ final class AppModel {
         }
     }
 
+    private func performSearchSelection() async {
+        guard let session = currentScreenSession else {
+            AppLogger.app.debug("Ignored search action because no screen session is active.")
+            return
+        }
+
+        guard let selection = session.selection else {
+            AppLogger.app.debug("Ignored search action because there is no selection.")
+            return
+        }
+
+        if let context = selectedTextContext(for: session) {
+            openSearchAndClose(query: context.queryText)
+            AppLogger.app.info(
+                "Opening browser handoff search for \(context.blocks.count) selected text block(s)."
+            )
+            return
+        }
+
+        var searchingSession = session
+        searchingSession.phase = .searching
+        searchingSession.errorMessage = nil
+        currentScreenSession = searchingSession
+        refreshStatusMessage(for: searchingSession)
+
+        do {
+            let query = try await makeImageSearchQuery(
+                for: selection.rect,
+                snapshot: session.snapshot
+            )
+
+            guard let activeSession = validatedSession(withID: session.id) else {
+                return
+            }
+
+            currentScreenSession = activeSession
+            openSearchAndClose(query: query)
+            AppLogger.app.info("Opening browser handoff image/object search for session \(session.id.uuidString).")
+        } catch {
+            guard var activeSession = validatedSession(withID: session.id) else {
+                return
+            }
+
+            activeSession.phase = .ready
+            activeSession.errorMessage = error.localizedDescription
+            currentScreenSession = activeSession
+            lastErrorMessage = error.localizedDescription
+            refreshStatusMessage(for: activeSession)
+            AppLogger.app.error("Image/object search preparation failed: \(error.localizedDescription)")
+        }
+    }
+
     func updateSelectionRect(_ rect: CGRect?, mode: ScreenSelectionMode = .rectangle) {
         guard var session = currentScreenSession else {
             return
         }
 
-        session.selection = normalizedSelection(from: rect, in: session.snapshot).map {
-            ScreenSelection(rect: $0, mode: mode)
+        applySelection(
+            normalizedSelection(from: rect, in: session.snapshot).map {
+                ScreenSelection(rect: $0, mode: mode)
+            },
+            to: &session
+        )
+    }
+
+    func commitSelectionRect(_ rect: CGRect?, mode: ScreenSelectionMode = .rectangle) {
+        guard var session = currentScreenSession else {
+            return
         }
-        session.errorMessage = nil
-        currentScreenSession = session
-        refreshStatusMessage(for: session)
+
+        let committedSelection = committedSelection(
+            from: rect,
+            mode: mode,
+            in: session
+        )
+
+        applySelection(committedSelection, to: &session)
     }
 
     func clearSelection() {
@@ -170,10 +228,7 @@ final class AppModel {
             return
         }
 
-        session.selection = nil
-        session.errorMessage = nil
-        currentScreenSession = session
-        refreshStatusMessage(for: session)
+        applySelection(nil, to: &session)
     }
 
     @discardableResult
@@ -213,12 +268,47 @@ final class AppModel {
             return false
         }
 
-        session.selection = ScreenSelection(rect: paddedRect, mode: .textCluster)
-        session.errorMessage = nil
-        currentScreenSession = session
-        refreshStatusMessage(for: session)
+        applySelection(
+            ScreenSelection(rect: paddedRect, mode: .textCluster),
+            to: &session
+        )
         AppLogger.app.info("Selected OCR text cluster near point \(NSStringFromPoint(point)).")
         return true
+    }
+
+    func nudgeSelection(_ direction: SelectionNudgeDirection, amount: CGFloat) {
+        guard var session = currentScreenSession, let selection = session.selection else {
+            return
+        }
+
+        let delta = direction.offset(distance: amount)
+        let visibleRect = session.snapshot.visibleContentLocalRect
+
+        var nudgedRect = selection.rect.offsetBy(dx: delta.width, dy: delta.height)
+
+        if nudgedRect.minX < visibleRect.minX {
+            nudgedRect.origin.x = visibleRect.minX
+        }
+
+        if nudgedRect.maxX > visibleRect.maxX {
+            nudgedRect.origin.x = visibleRect.maxX - nudgedRect.width
+        }
+
+        if nudgedRect.minY < visibleRect.minY {
+            nudgedRect.origin.y = visibleRect.minY
+        }
+
+        if nudgedRect.maxY > visibleRect.maxY {
+            nudgedRect.origin.y = visibleRect.maxY - nudgedRect.height
+        }
+
+        let committed = committedSelection(
+            from: nudgedRect,
+            mode: selection.mode,
+            in: session
+        )
+
+        applySelection(committed, to: &session)
     }
 
     func showOriginalScreen() {
@@ -229,7 +319,7 @@ final class AppModel {
 
         session.displayMode = .original
         currentScreenSession = session
-        statusMessage = "Showing the original screen."
+        refreshStatusMessage(for: session)
         AppLogger.overlay.info("Showing original frozen screen for session \(session.id.uuidString).")
     }
 
@@ -240,6 +330,27 @@ final class AppModel {
         overlayCoordinator.dismiss()
         currentScreenSession = nil
         statusMessage = "Ready. Click the menu bar icon or press \(GlobalHotkeyService.defaultShortcutDescription) to search or translate."
+    }
+
+    func handleOverlayKeyDown(_ event: NSEvent) -> Bool {
+        let step: CGFloat = event.modifierFlags.contains(.shift) ? 12 : 3
+
+        switch event.keyCode {
+        case 123:
+            nudgeSelection(.left, amount: step)
+            return true
+        case 124:
+            nudgeSelection(.right, amount: step)
+            return true
+        case 125:
+            nudgeSelection(.down, amount: step)
+            return true
+        case 126:
+            nudgeSelection(.up, amount: step)
+            return true
+        default:
+            return false
+        }
     }
 
     func openSettings() {
@@ -471,7 +582,8 @@ final class AppModel {
 
             activeSession.renderedBlocks = textReplacementRenderer.render(
                 snapshot: activeSession.snapshot,
-                translatedBlocks: translatedBlocks
+                translatedBlocks: translatedBlocks,
+                clipRect: scope == .selection ? activeSession.selection?.rect : nil
             )
             activeSession.phase = .translated
             activeSession.displayMode = .translated
@@ -511,19 +623,11 @@ final class AppModel {
             return nil
         }
 
-        let selectedBlocks = session.recognizedBlocks.filter { block in
-            let intersection = selection.rect.intersection(block.localRect)
-
-            guard !intersection.isNull else {
-                return false
-            }
-
-            let midpoint = CGPoint(x: block.localRect.midX, y: block.localRect.midY)
-            let blockArea = max(block.localRect.width * block.localRect.height, 1)
-            let intersectionArea = intersection.width * intersection.height
-
-            return selection.rect.contains(midpoint) || intersectionArea / blockArea >= 0.35
-        }
+        let selectedBlocks = recognizedBlocks(
+            intersecting: selection.rect,
+            within: session,
+            minimumIntersectionRatio: 0.35
+        )
 
         guard !selectedBlocks.isEmpty else {
             return nil
@@ -555,16 +659,20 @@ final class AppModel {
     }
 
     func selectionPreviewText(for session: ScreenTranslationSession) -> String? {
-        guard let context = selectedTextContext(for: session) else {
-            return nil
+        if let context = selectedTextContext(for: session) {
+            if context.queryText.count <= 96 {
+                return context.queryText
+            }
+
+            let cutoffIndex = context.queryText.index(context.queryText.startIndex, offsetBy: 93)
+            return "\(context.queryText[..<cutoffIndex])..."
         }
 
-        if context.queryText.count <= 96 {
-            return context.queryText
+        if session.hasSelection {
+            return "Image search will use the selected region when no readable text is found."
         }
 
-        let cutoffIndex = context.queryText.index(context.queryText.startIndex, offsetBy: 93)
-        return "\(context.queryText[..<cutoffIndex])..."
+        return nil
     }
 
     private func translateWithConfiguredProvider(
@@ -614,12 +722,14 @@ final class AppModel {
             if let selectedTextContext = selectedTextContext(for: session) {
                 statusMessage = "Ready to search or translate \(selectedTextContext.blocks.count) text block(s)."
             } else if session.hasSelection {
-                statusMessage = "Selection does not contain readable text."
+                statusMessage = "Selection is ready for image search."
             } else if session.hasRecognizedText {
                 statusMessage = "Drag to select or click text."
             } else {
                 statusMessage = "No text recognized on the visible screen."
             }
+        case .searching:
+            statusMessage = "Identifying the selected image..."
         case .translating:
             statusMessage = session.translationScope == .selection
                 ? "Translating the selected text..."
@@ -629,6 +739,10 @@ final class AppModel {
                 statusMessage = session.translationScope == .selection
                     ? "Showing translated text in the selected area."
                     : "Showing translated text in place."
+            } else if session.translationScope == .selection, session.hasSelection {
+                statusMessage = "Showing the original selection. Search or translate again."
+            } else if session.hasRecognizedText {
+                statusMessage = "Showing the original screen."
             } else {
                 statusMessage = "Showing the original screen."
             }
@@ -658,11 +772,115 @@ final class AppModel {
         return clampedRect
     }
 
+    private func committedSelection(
+        from rect: CGRect?,
+        mode: ScreenSelectionMode,
+        in session: ScreenTranslationSession
+    ) -> ScreenSelection? {
+        guard let normalizedRect = normalizedSelection(from: rect, in: session.snapshot) else {
+            return nil
+        }
+
+        guard mode == .rectangle, session.phase != .analyzing else {
+            return ScreenSelection(rect: normalizedRect, mode: mode)
+        }
+
+        let snappedRect = snappedSelectionRect(for: normalizedRect, in: session) ?? normalizedRect
+        return ScreenSelection(rect: snappedRect, mode: mode)
+    }
+
+    private func snappedSelectionRect(
+        for selectionRect: CGRect,
+        in session: ScreenTranslationSession
+    ) -> CGRect? {
+        let selectedBlocks = recognizedBlocks(
+            intersecting: selectionRect,
+            within: session,
+            minimumIntersectionRatio: 0.22
+        )
+
+        guard !selectedBlocks.isEmpty else {
+            return nil
+        }
+
+        let unionRect = selectedBlocks
+            .reduce(CGRect.null) { partialResult, block in
+                partialResult.union(block.localRect)
+            }
+            .insetBy(dx: -8, dy: -6)
+            .intersection(session.snapshot.visibleContentLocalRect)
+            .integral
+
+        guard !unionRect.isNull else {
+            return nil
+        }
+
+        let originalArea = max(selectionRect.width * selectionRect.height, 1)
+        let snappedArea = max(unionRect.width * unionRect.height, 1)
+        let overlapArea = selectionRect.intersection(unionRect).area
+        let overlapRatio = overlapArea / min(originalArea, snappedArea)
+        let areaRatio = snappedArea / originalArea
+
+        guard overlapRatio >= 0.55, areaRatio >= 0.35, areaRatio <= 1.35 else {
+            return nil
+        }
+
+        return unionRect
+    }
+
+    private func applySelection(
+        _ selection: ScreenSelection?,
+        to session: inout ScreenTranslationSession
+    ) {
+        let selectionChanged = session.selection != selection
+        session.selection = selection
+        session.errorMessage = nil
+
+        if selectionChanged {
+            invalidateSelectionScopedTranslation(in: &session)
+        }
+
+        currentScreenSession = session
+        refreshStatusMessage(for: session)
+    }
+
+    private func invalidateSelectionScopedTranslation(in session: inout ScreenTranslationSession) {
+        guard session.translationScope == .selection else {
+            return
+        }
+
+        session.displayMode = .original
+        session.phase = .ready
+        session.translationScope = nil
+        session.renderedBlocks = []
+        session.queuedTranslateRequest = false
+    }
+
     private func distance(from point: CGPoint, to rect: CGRect) -> CGFloat {
         let dx = max(rect.minX - point.x, 0, point.x - rect.maxX)
         let dy = max(rect.minY - point.y, 0, point.y - rect.maxY)
 
         return sqrt((dx * dx) + (dy * dy))
+    }
+
+    private func recognizedBlocks(
+        intersecting selectionRect: CGRect,
+        within session: ScreenTranslationSession,
+        minimumIntersectionRatio: CGFloat
+    ) -> [RecognizedTextBlock] {
+        session.recognizedBlocks.filter { block in
+            let intersection = selectionRect.intersection(block.localRect)
+
+            guard !intersection.isNull else {
+                return false
+            }
+
+            let midpoint = CGPoint(x: block.localRect.midX, y: block.localRect.midY)
+            let blockArea = max(block.localRect.width * block.localRect.height, 1)
+            let intersectionArea = intersection.width * intersection.height
+
+            return selectionRect.contains(midpoint) || intersectionArea / blockArea >= minimumIntersectionRatio
+        }
     }
 
     private func searchURL(for query: String) -> URL? {
@@ -675,6 +893,38 @@ final class AppModel {
         ]
 
         return components.url
+    }
+
+    private func openSearchAndClose(query: String) {
+        guard let url = searchURL(for: query) else {
+            AppLogger.app.error("Failed to build a search URL for the selected content.")
+            lastErrorMessage = "The selected content could not be searched."
+            statusMessage = "Search failed."
+            return
+        }
+
+        statusMessage = "Opening search results..."
+        lastErrorMessage = nil
+        NSWorkspace.shared.open(url)
+        closeCurrentScreenSession()
+    }
+
+    private func makeImageSearchQuery(
+        for selectionRect: CGRect,
+        snapshot: CapturedDisplaySnapshot
+    ) async throws -> String {
+        let expandedRect = selectionRect
+            .insetBy(dx: -10, dy: -10)
+            .intersection(snapshot.visibleContentLocalRect)
+            .integral
+
+        let imageRect = snapshot.imageRect(for: expandedRect)
+
+        guard let croppedImage = snapshot.image.cropping(to: imageRect) else {
+            throw VisualQueryError.noRecognizedSubject
+        }
+
+        return try await visualSearchProvider.makeQuery(from: croppedImage).query
     }
 
     private func makeRecognizedBlocks(
@@ -723,5 +973,35 @@ final class AppModel {
                 imageRect: imageRect
             )
         }
+    }
+}
+
+enum SelectionNudgeDirection {
+    case left
+    case right
+    case up
+    case down
+
+    func offset(distance: CGFloat) -> CGSize {
+        switch self {
+        case .left:
+            return CGSize(width: -distance, height: 0)
+        case .right:
+            return CGSize(width: distance, height: 0)
+        case .up:
+            return CGSize(width: 0, height: -distance)
+        case .down:
+            return CGSize(width: 0, height: distance)
+        }
+    }
+}
+
+private extension CGRect {
+    var area: CGFloat {
+        guard !isNull else {
+            return 0
+        }
+
+        return width * height
     }
 }

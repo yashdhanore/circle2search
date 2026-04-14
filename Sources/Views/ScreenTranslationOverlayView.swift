@@ -49,7 +49,10 @@ private struct CaptureCanvasView: View {
                     .allowsHitTesting(false)
 
                 if session.displayMode == .translated {
-                    translatedLayer(session.renderedBlocks)
+                    translatedLayer(
+                        session.renderedBlocks,
+                        clipRect: session.translationScope == .selection ? session.selection?.rect : nil
+                    )
                         .allowsHitTesting(false)
                 }
 
@@ -65,12 +68,13 @@ private struct CaptureCanvasView: View {
                 }
 
                 ActiveCaptureEdgeGlowView(
-                    isBusy: session.phase == .analyzing || session.phase == .translating
+                    isBusy: session.phase == .analyzing || session.phase == .searching || session.phase == .translating
                 )
                 .allowsHitTesting(false)
             }
             .contentShape(Rectangle())
             .gesture(selectionGesture(in: session.snapshot.visibleContentLocalRect))
+            .allowsHitTesting(session.phase != .searching && session.phase != .translating)
             .clipped()
         }
     }
@@ -86,10 +90,22 @@ private struct CaptureCanvasView: View {
         .ignoresSafeArea()
     }
 
-    private func translatedLayer(_ blocks: [RenderableTranslationBlock]) -> some View {
+    private func translatedLayer(
+        _ blocks: [RenderableTranslationBlock],
+        clipRect: CGRect?
+    ) -> some View {
         ZStack(alignment: .topLeading) {
             ForEach(blocks) { block in
                 RenderedTranslationBlockView(block: block)
+            }
+        }
+        .mask {
+            if let clipRect {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .frame(width: clipRect.width, height: clipRect.height)
+                    .position(x: clipRect.midX, y: clipRect.midY)
+            } else {
+                Rectangle()
             }
         }
         .ignoresSafeArea()
@@ -144,7 +160,7 @@ private struct CaptureCanvasView: View {
                     return
                 }
 
-                appModel.updateSelectionRect(
+                appModel.commitSelectionRect(
                     dragContext.selectionRect(for: value.location, visibleRect: visibleRect),
                     mode: dragContext.selectionMode
                 )
@@ -214,7 +230,7 @@ private struct BottomSearchPanelView: View {
             }
 
             HStack(spacing: 8) {
-                if session.phase == .analyzing || session.phase == .translating {
+                if session.phase == .analyzing || session.phase == .searching || session.phase == .translating {
                     ProgressView()
                         .controlSize(.small)
                 }
@@ -263,12 +279,14 @@ private struct BottomSearchPanelView: View {
             }
 
             if session.hasSelection {
-                return "Selection does not contain readable text."
+                return "Selection is ready for image search."
             }
 
             return session.hasRecognizedText
                 ? "Drag to select or click text."
                 : "No text was recognized on the visible screen."
+        case .searching:
+            return "Identifying the selected image."
         case .translating:
             return session.translationScope == .selection
                 ? "Translating the selected text."
@@ -278,7 +296,9 @@ private struct BottomSearchPanelView: View {
                 ? (session.translationScope == .selection
                     ? "Showing translated text in the selected area."
                     : "Showing translated text in place. You can still search a selection.")
-                : "Showing the original screen."
+                : (session.translationScope == .selection && session.hasSelection
+                    ? "Showing the original selection. Search or translate again."
+                    : "Showing the original screen.")
         }
     }
 
@@ -291,15 +311,15 @@ private struct BottomSearchPanelView: View {
     }
 
     private func canSearch(_ session: ScreenTranslationSession) -> Bool {
-        guard session.phase != .analyzing, session.phase != .translating else {
+        guard session.phase != .analyzing, session.phase != .searching, session.phase != .translating else {
             return false
         }
 
-        return appModel.selectedTextContext(for: session) != nil
+        return session.hasSelection
     }
 
     private func canTranslateScreen(_ session: ScreenTranslationSession) -> Bool {
-        guard session.phase != .analyzing, session.phase != .translating else {
+        guard session.phase != .analyzing, session.phase != .searching, session.phase != .translating else {
             return false
         }
 
@@ -311,7 +331,7 @@ private struct BottomSearchPanelView: View {
     }
 
     private func canTranslateSelection(_ session: ScreenTranslationSession) -> Bool {
-        guard session.phase != .analyzing, session.phase != .translating else {
+        guard session.phase != .analyzing, session.phase != .searching, session.phase != .translating else {
             return false
         }
 
@@ -328,14 +348,31 @@ private struct SelectionFocusMaskView: View {
     let selectionRect: CGRect
 
     var body: some View {
-        Path { path in
-            path.addRect(CGRect(origin: .zero, size: canvasSize))
-            path.addRoundedRect(
-                in: selectionRect,
-                cornerSize: CGSize(width: 16, height: 16)
-            )
+        ZStack {
+            Path { path in
+                path.addRect(CGRect(origin: .zero, size: canvasSize))
+                path.addRoundedRect(
+                    in: selectionRect,
+                    cornerSize: CGSize(width: 18, height: 18)
+                )
+            }
+            .fill(Color.black.opacity(0.3), style: FillStyle(eoFill: true))
+
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.07),
+                            Color.white.opacity(0.02)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(width: selectionRect.width, height: selectionRect.height)
+                .position(x: selectionRect.midX, y: selectionRect.midY)
+                .blendMode(.screen)
         }
-        .fill(Color.black.opacity(0.24), style: FillStyle(eoFill: true))
         .ignoresSafeArea()
     }
 }
@@ -347,29 +384,141 @@ private struct SelectionOutlineView: View {
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.white.opacity(selection.mode == .textCluster ? 0.05 : 0.03))
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(selection.mode == .textCluster ? 0.08 : 0.05),
+                            Color.white.opacity(selection.mode == .textCluster ? 0.035 : 0.02)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
                 .frame(width: selection.rect.width, height: selection.rect.height)
                 .position(x: selection.rect.midX, y: selection.rect.midY)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.14), lineWidth: 0.8)
+                        .frame(width: selection.rect.width, height: selection.rect.height)
+                        .position(x: selection.rect.midX, y: selection.rect.midY)
+                }
+                .shadow(color: .white.opacity(0.08), radius: 18)
+                .shadow(color: accentColor.opacity(selection.mode == .textCluster ? 0.18 : 0.12), radius: 24)
 
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(accentColor.opacity(0.95), lineWidth: 1.4)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(
+                    accentColor.opacity(selection.mode == .textCluster ? 0.24 : 0.14),
+                    lineWidth: selection.mode == .textCluster ? 1.1 : 0.8
+                )
                 .frame(width: selection.rect.width, height: selection.rect.height)
                 .position(x: selection.rect.midX, y: selection.rect.midY)
-                .shadow(color: accentColor.opacity(0.28), radius: 18)
+                .shadow(color: accentColor.opacity(0.18), radius: 20)
+
+            ForEach(SelectionCorner.allCases, id: \.self) { corner in
+                SelectionCornerBracketView(
+                    corner: corner,
+                    rect: selection.rect,
+                    color: accentColor,
+                    mode: selection.mode
+                )
+            }
 
             ForEach(SelectionHandle.allCases, id: \.self) { handle in
-                Circle()
-                    .fill(.white)
-                    .overlay {
-                        Circle()
-                            .strokeBorder(accentColor.opacity(0.9), lineWidth: 1.4)
-                    }
-                    .frame(width: 11, height: 11)
-                    .position(handle.position(in: selection.rect))
-                    .shadow(color: .black.opacity(0.18), radius: 5, y: 1)
+                if handle.isEdge {
+                    SelectionEdgeHandleView(
+                        handle: handle,
+                        rect: selection.rect,
+                        color: accentColor
+                    )
+                }
             }
         }
+    }
+}
+
+private enum SelectionCorner: CaseIterable {
+    case topLeft
+    case topRight
+    case bottomRight
+    case bottomLeft
+}
+
+private struct SelectionCornerBracketView: View {
+    let corner: SelectionCorner
+    let rect: CGRect
+    let color: Color
+    let mode: ScreenSelectionMode
+
+    private var length: CGFloat {
+        min(max(min(rect.width, rect.height) * 0.18, 18), 34)
+    }
+
+    private var lineWidth: CGFloat {
+        mode == .textCluster ? 2.6 : 2.2
+    }
+
+    var body: some View {
+        ZStack {
+            bracketPath
+                .stroke(Color.white.opacity(0.34), style: StrokeStyle(lineWidth: lineWidth + 0.8, lineCap: .round, lineJoin: .round))
+                .blur(radius: 0.25)
+
+            bracketPath
+                .stroke(color.opacity(mode == .textCluster ? 0.98 : 0.9), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round))
+                .shadow(color: color.opacity(0.28), radius: 12)
+        }
+    }
+
+    private var bracketPath: Path {
+        Path { path in
+            switch corner {
+            case .topLeft:
+                path.move(to: CGPoint(x: rect.minX + length, y: rect.minY))
+                path.addLine(to: CGPoint(x: rect.minX, y: rect.minY))
+                path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + length))
+            case .topRight:
+                path.move(to: CGPoint(x: rect.maxX - length, y: rect.minY))
+                path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+                path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY + length))
+            case .bottomRight:
+                path.move(to: CGPoint(x: rect.maxX - length, y: rect.maxY))
+                path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+                path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - length))
+            case .bottomLeft:
+                path.move(to: CGPoint(x: rect.minX + length, y: rect.maxY))
+                path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+                path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY - length))
+            }
+        }
+    }
+}
+
+private struct SelectionEdgeHandleView: View {
+    let handle: SelectionHandle
+    let rect: CGRect
+    let color: Color
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: 999, style: .continuous)
+            .fill(
+                LinearGradient(
+                    colors: [
+                        Color.white.opacity(0.88),
+                        color.opacity(0.42)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .frame(width: handle.isVertical ? 4 : 18, height: handle.isVertical ? 18 : 4)
+            .overlay {
+                RoundedRectangle(cornerRadius: 999, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.35), lineWidth: 0.6)
+            }
+            .position(handle.position(in: rect))
+            .shadow(color: color.opacity(0.18), radius: 8)
+            .opacity(0.92)
     }
 }
 
@@ -382,6 +531,26 @@ private enum SelectionHandle: CaseIterable {
     case bottom
     case bottomLeft
     case leading
+
+    var isEdge: Bool {
+        switch self {
+        case .top, .trailing, .bottom, .leading:
+            return true
+        case .topLeft, .topRight, .bottomRight, .bottomLeft:
+            return false
+        }
+    }
+
+    var isVertical: Bool {
+        switch self {
+        case .trailing, .leading:
+            return true
+        case .top, .bottom:
+            return false
+        case .topLeft, .topRight, .bottomRight, .bottomLeft:
+            return false
+        }
+    }
 
     func position(in rect: CGRect) -> CGPoint {
         switch self {
@@ -417,6 +586,8 @@ private enum SelectionHandle: CaseIterable {
 }
 
 private struct SelectionDragContext {
+    private static let minimumSize = CGSize(width: 20, height: 20)
+
     let startLocation: CGPoint
     let dragMode: SelectionDragMode
     let selectionMode: ScreenSelectionMode
@@ -451,6 +622,8 @@ private struct SelectionDragContext {
                 width: abs(currentLocation.x - origin.x),
                 height: abs(currentLocation.y - origin.y)
             )
+            .intersection(visibleRect)
+            .integral
         case let .move(initialRect, gestureOrigin):
             let deltaX = currentLocation.x - gestureOrigin.x
             let deltaY = currentLocation.y - gestureOrigin.y
@@ -477,7 +650,8 @@ private struct SelectionDragContext {
             return resizedRect(
                 from: initialRect,
                 using: handle,
-                currentLocation: currentLocation
+                currentLocation: currentLocation,
+                visibleRect: visibleRect
             )
         }
     }
@@ -485,8 +659,14 @@ private struct SelectionDragContext {
     private func resizedRect(
         from initialRect: CGRect,
         using handle: SelectionHandle,
-        currentLocation: CGPoint
+        currentLocation: CGPoint,
+        visibleRect: CGRect
     ) -> CGRect {
+        let clampedLocation = CGPoint(
+            x: min(max(currentLocation.x, visibleRect.minX), visibleRect.maxX),
+            y: min(max(currentLocation.y, visibleRect.minY), visibleRect.maxY)
+        )
+
         var minX = initialRect.minX
         var maxX = initialRect.maxX
         var minY = initialRect.minY
@@ -494,25 +674,25 @@ private struct SelectionDragContext {
 
         switch handle {
         case .topLeft:
-            minX = currentLocation.x
-            minY = currentLocation.y
+            minX = min(clampedLocation.x, initialRect.maxX - Self.minimumSize.width)
+            minY = min(clampedLocation.y, initialRect.maxY - Self.minimumSize.height)
         case .top:
-            minY = currentLocation.y
+            minY = min(clampedLocation.y, initialRect.maxY - Self.minimumSize.height)
         case .topRight:
-            maxX = currentLocation.x
-            minY = currentLocation.y
+            maxX = max(clampedLocation.x, initialRect.minX + Self.minimumSize.width)
+            minY = min(clampedLocation.y, initialRect.maxY - Self.minimumSize.height)
         case .trailing:
-            maxX = currentLocation.x
+            maxX = max(clampedLocation.x, initialRect.minX + Self.minimumSize.width)
         case .bottomRight:
-            maxX = currentLocation.x
-            maxY = currentLocation.y
+            maxX = max(clampedLocation.x, initialRect.minX + Self.minimumSize.width)
+            maxY = max(clampedLocation.y, initialRect.minY + Self.minimumSize.height)
         case .bottom:
-            maxY = currentLocation.y
+            maxY = max(clampedLocation.y, initialRect.minY + Self.minimumSize.height)
         case .bottomLeft:
-            minX = currentLocation.x
-            maxY = currentLocation.y
+            minX = min(clampedLocation.x, initialRect.maxX - Self.minimumSize.width)
+            maxY = max(clampedLocation.y, initialRect.minY + Self.minimumSize.height)
         case .leading:
-            minX = currentLocation.x
+            minX = min(clampedLocation.x, initialRect.maxX - Self.minimumSize.width)
         }
 
         return CGRect(

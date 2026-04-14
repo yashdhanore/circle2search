@@ -20,6 +20,7 @@ struct CircleToSearchApp: App {
             overlayCoordinator: ScreenTranslationOverlayCoordinator(),
             screenCaptureService: ScreenCaptureService(),
             ocrProvider: VisionOCRProvider(),
+            visualSearchProvider: VisionVisualQueryProvider(),
             textReplacementRenderer: TextReplacementRenderer(),
             settingsWindowController: SettingsWindowController()
         )

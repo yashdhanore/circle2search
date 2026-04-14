@@ -21,6 +21,29 @@ protocol OCRProvider: Sendable {
     func extractText(from image: CGImage) async throws -> OCRResult
 }
 
+struct VisualQueryResult: Sendable {
+    let labels: [String]
+
+    var query: String {
+        labels.joined(separator: " ")
+    }
+}
+
+protocol VisualQueryProvider: Sendable {
+    func makeQuery(from image: CGImage) async throws -> VisualQueryResult
+}
+
+enum VisualQueryError: LocalizedError {
+    case noRecognizedSubject
+
+    var errorDescription: String? {
+        switch self {
+        case .noRecognizedSubject:
+            return "The selected image could not be identified well enough to search."
+        }
+    }
+}
+
 struct VisionOCRProvider: OCRProvider, Sendable {
     func extractText(from image: CGImage) async throws -> OCRResult {
         try await Task.detached(priority: .userInitiated) {
@@ -78,6 +101,59 @@ struct VisionOCRProvider: OCRProvider, Sendable {
             )
 
             return OCRResult(observations: orderedObservations)
+        }.value
+    }
+}
+
+struct VisionVisualQueryProvider: VisualQueryProvider, Sendable {
+    func makeQuery(from image: CGImage) async throws -> VisualQueryResult {
+        try await Task.detached(priority: .userInitiated) {
+            AppLogger.app.info(
+                "Starting Vision image classification for crop \(image.width)x\(image.height)."
+            )
+
+            let request = VNClassifyImageRequest()
+            let handler = VNImageRequestHandler(cgImage: image, options: [:])
+            try handler.perform([request])
+
+            let observations = request.results ?? []
+            var labels: [String] = []
+            var seenLabels = Set<String>()
+
+            for observation in observations {
+                guard observation.confidence >= 0.08 else {
+                    continue
+                }
+
+                let normalizedLabel = observation.identifier
+                    .replacingOccurrences(of: "_", with: " ")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+
+                guard !normalizedLabel.isEmpty else {
+                    continue
+                }
+
+                let dedupeKey = normalizedLabel.lowercased()
+                guard seenLabels.insert(dedupeKey).inserted else {
+                    continue
+                }
+
+                labels.append(normalizedLabel)
+
+                if labels.count == 4 {
+                    break
+                }
+            }
+
+            guard !labels.isEmpty else {
+                throw VisualQueryError.noRecognizedSubject
+            }
+
+            AppLogger.app.info(
+                "Vision image classification produced \(labels.count) search label(s): \(labels.joined(separator: ", "))"
+            )
+
+            return VisualQueryResult(labels: labels)
         }.value
     }
 }

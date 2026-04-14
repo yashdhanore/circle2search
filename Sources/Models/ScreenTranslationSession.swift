@@ -97,6 +97,7 @@ struct RenderableTranslationBlock: Identifiable {
 enum ScreenTranslationPhase: Equatable {
     case analyzing
     case ready
+    case searching
     case translating
     case translated
 }

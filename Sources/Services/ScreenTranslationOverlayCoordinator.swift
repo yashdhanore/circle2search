@@ -34,6 +34,9 @@ final class ScreenTranslationOverlayCoordinator {
         let controller = ScreenTranslationPanelController(
             screen: screen,
             appModel: appModel,
+            onKeyEvent: { event in
+                appModel.handleOverlayKeyDown(event)
+            },
             onClose: { [weak self] in
                 self?.requestClose()
             }
@@ -73,6 +76,7 @@ private final class ScreenTranslationPanelController {
     init(
         screen: NSScreen,
         appModel: AppModel,
+        onKeyEvent: @escaping (NSEvent) -> Bool,
         onClose: @escaping () -> Void
     ) {
         self.panel = ScreenTranslationPanel(
@@ -91,6 +95,7 @@ private final class ScreenTranslationPanelController {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
         panel.ignoresMouseEvents = false
         panel.cancelHandler = onClose
+        panel.keyEventHandler = onKeyEvent
         panel.contentView = NSHostingView(
             rootView: ScreenTranslationOverlayView(appModel: appModel)
         )
@@ -110,12 +115,15 @@ private final class ScreenTranslationPanelController {
 @MainActor
 private final class ScreenTranslationPanel: NSPanel {
     var cancelHandler: (() -> Void)?
+    var keyEventHandler: ((NSEvent) -> Bool)?
 
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
 
     override func keyDown(with event: NSEvent) {
-        if event.keyCode == 53 {
+        if keyEventHandler?(event) == true {
+            return
+        } else if event.keyCode == 53 {
             cancelHandler?()
         } else {
             super.keyDown(with: event)
