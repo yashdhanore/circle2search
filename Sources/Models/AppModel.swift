@@ -820,8 +820,21 @@ final class AppModel {
         let overlapArea = selectionRect.intersection(unionRect).area
         let overlapRatio = overlapArea / min(originalArea, snappedArea)
         let areaRatio = snappedArea / originalArea
+        let centerDistance = distance(from: selectionRect.center, to: unionRect.center)
+        let maxCenterShift = max(14, min(selectionRect.width, selectionRect.height) * 0.18)
+        let widthRatio = unionRect.width / max(selectionRect.width, 1)
+        let heightRatio = unionRect.height / max(selectionRect.height, 1)
 
-        guard overlapRatio >= 0.55, areaRatio >= 0.35, areaRatio <= 1.35 else {
+        guard
+            overlapRatio >= 0.55,
+            areaRatio >= 0.35,
+            areaRatio <= 1.35,
+            centerDistance <= maxCenterShift,
+            widthRatio >= 0.5,
+            widthRatio <= 1.3,
+            heightRatio >= 0.5,
+            heightRatio <= 1.3
+        else {
             return nil
         }
 
@@ -860,6 +873,12 @@ final class AppModel {
         let dx = max(rect.minX - point.x, 0, point.x - rect.maxX)
         let dy = max(rect.minY - point.y, 0, point.y - rect.maxY)
 
+        return sqrt((dx * dx) + (dy * dy))
+    }
+
+    private func distance(from lhs: CGPoint, to rhs: CGPoint) -> CGFloat {
+        let dx = lhs.x - rhs.x
+        let dy = lhs.y - rhs.y
         return sqrt((dx * dx) + (dy * dy))
     }
 
@@ -1003,5 +1022,9 @@ private extension CGRect {
         }
 
         return width * height
+    }
+
+    var center: CGPoint {
+        CGPoint(x: midX, y: midY)
     }
 }
