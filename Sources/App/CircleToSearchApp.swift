@@ -17,6 +17,7 @@ struct CircleToSearchApp: App {
             managedTranslationDebugStore: debugStore,
             selfHostedBackendManager: selfHostedBackendManager,
             hotkeyService: GlobalHotkeyService(),
+            launcherCoordinator: SearchLauncherCoordinator(),
             overlayCoordinator: ScreenTranslationOverlayCoordinator(),
             screenCaptureService: ScreenCaptureService(),
             ocrProvider: VisionOCRProvider(),

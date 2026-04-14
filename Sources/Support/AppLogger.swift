@@ -37,6 +37,7 @@ enum AppLogger {
 
     static let app = AppLogChannel(subsystem: subsystem, category: "app")
     static let backend = AppLogChannel(subsystem: subsystem, category: "backend")
+    static let launcher = AppLogChannel(subsystem: subsystem, category: "launcher")
     static let menuBar = AppLogChannel(subsystem: subsystem, category: "menuBar")
     static let settings = AppLogChannel(subsystem: subsystem, category: "settings")
     static let capture = AppLogChannel(subsystem: subsystem, category: "capture")

@@ -10,7 +10,7 @@ final class StatusItemController: NSObject {
         let menu = NSMenu()
 
         let translateItem = NSMenuItem(
-            title: "Search or Translate Screen",
+            title: "Open Search Box",
             action: #selector(performPrimaryAction),
             keyEquivalent: ""
         )
@@ -59,7 +59,7 @@ final class StatusItemController: NSObject {
             accessibilityDescription: "Circle to Search"
         )
         button.image?.isTemplate = true
-        button.toolTip = "Search or translate the visible screen"
+        button.toolTip = "Open the search box"
         button.target = self
         button.action = #selector(handleStatusItemPress(_:))
         button.sendAction(on: [.leftMouseUp, .rightMouseUp])
@@ -84,7 +84,7 @@ final class StatusItemController: NSObject {
 
     @objc
     private func performPrimaryAction() {
-        AppLogger.menuBar.info("Triggered screen search overlay from status item.")
+        AppLogger.menuBar.info("Triggered launcher from status item.")
         Task { @MainActor in
             onPrimaryAction()
         }

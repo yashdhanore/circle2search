@@ -4,16 +4,22 @@ import Observation
 @MainActor
 @Observable
 final class AppModel {
+    static var readyStatusMessage: String {
+        "Ready. Click the menu bar icon or press \(GlobalHotkeyService.defaultShortcutDescription) to open the search box."
+    }
+
     let settingsStore: SettingsStore
     let managedTranslationDebugStore: ManagedTranslationDebugStore
     let selfHostedBackendManager: SelfHostedBackendManager
 
-    var statusMessage = "Ready. Click the menu bar icon or press \(GlobalHotkeyService.defaultShortcutDescription) to search or translate."
+    var statusMessage = AppModel.readyStatusMessage
     var lastErrorMessage: String?
     var currentScreenSession: ScreenTranslationSession?
     var isSessionPreparationInFlight = false
+    var launcherQuery = ""
 
     private let hotkeyService: GlobalHotkeyService
+    private let launcherCoordinator: SearchLauncherCoordinator
     private let overlayCoordinator: ScreenTranslationOverlayCoordinator
     private let screenCaptureService: ScreenCaptureService
     private let ocrProvider: VisionOCRProvider
@@ -27,6 +33,7 @@ final class AppModel {
         managedTranslationDebugStore: ManagedTranslationDebugStore,
         selfHostedBackendManager: SelfHostedBackendManager,
         hotkeyService: GlobalHotkeyService,
+        launcherCoordinator: SearchLauncherCoordinator,
         overlayCoordinator: ScreenTranslationOverlayCoordinator,
         screenCaptureService: ScreenCaptureService,
         ocrProvider: VisionOCRProvider,
@@ -38,6 +45,7 @@ final class AppModel {
         self.managedTranslationDebugStore = managedTranslationDebugStore
         self.selfHostedBackendManager = selfHostedBackendManager
         self.hotkeyService = hotkeyService
+        self.launcherCoordinator = launcherCoordinator
         self.overlayCoordinator = overlayCoordinator
         self.screenCaptureService = screenCaptureService
         self.ocrProvider = ocrProvider
@@ -48,13 +56,13 @@ final class AppModel {
 
     func start() {
         hotkeyService.onTrigger = { [weak self] in
-            self?.beginFullScreenTranslateSession()
+            self?.openLauncher()
         }
 
         if statusItemController == nil {
             statusItemController = StatusItemController(
                 onPrimaryAction: { [weak self] in
-                    self?.beginFullScreenTranslateSession()
+                    self?.openLauncher()
                 },
                 onOpenSettings: { [weak self] in
                     self?.openSettings()
@@ -76,15 +84,66 @@ final class AppModel {
         }
     }
 
-    func beginFullScreenTranslateSession() {
-        guard currentScreenSession == nil, !overlayCoordinator.isPresented, !isSessionPreparationInFlight else {
-            AppLogger.app.debug("Ignored capture-session trigger because a session is already active or preparing.")
+    func openLauncher() {
+        if launcherCoordinator.isPresented {
+            dismissLauncher(resetQuery: false)
             return
         }
 
-        Task {
-            await prepareFullScreenTranslateSession()
+        guard currentScreenSession == nil, !overlayCoordinator.isPresented, !isSessionPreparationInFlight else {
+            AppLogger.launcher.debug("Ignored launcher trigger because a screen session is active or preparing.")
+            return
         }
+
+        lastErrorMessage = nil
+        statusMessage = "Search box ready."
+        AppLogger.launcher.info("Opening launcher panel.")
+        launcherCoordinator.present(
+            appModel: self,
+            onClose: { [weak self] in
+                self?.dismissLauncher(resetQuery: false)
+            }
+        )
+    }
+
+    func dismissLauncher(resetQuery: Bool = true) {
+        launcherCoordinator.dismiss()
+
+        if resetQuery {
+            launcherQuery = ""
+        }
+
+        if currentScreenSession == nil, !isSessionPreparationInFlight {
+            statusMessage = AppModel.readyStatusMessage
+        }
+    }
+
+    func submitLauncherSearch() {
+        let query = launcherQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !query.isEmpty else {
+            return
+        }
+
+        AppLogger.launcher.info("Opening browser search from launcher.")
+        dismissLauncher()
+        openWebSearch(query: query)
+    }
+
+    func launchScreenSearchFromLauncher() {
+        AppLogger.launcher.info("Starting screen search from launcher.")
+        dismissLauncher()
+        beginVisibleScreenSession(autoTranslateScreen: false)
+    }
+
+    func launchScreenTranslateFromLauncher() {
+        AppLogger.launcher.info("Starting screen translation from launcher.")
+        dismissLauncher()
+        beginVisibleScreenSession(autoTranslateScreen: true)
+    }
+
+    func beginFullScreenTranslateSession() {
+        beginVisibleScreenSession(autoTranslateScreen: true)
     }
 
     func activateSearchSelection() {
@@ -335,7 +394,7 @@ final class AppModel {
         }
         overlayCoordinator.dismiss()
         currentScreenSession = nil
-        statusMessage = "Ready. Click the menu bar icon or press \(GlobalHotkeyService.defaultShortcutDescription) to search or translate."
+        statusMessage = AppModel.readyStatusMessage
     }
 
     func handleOverlayKeyDown(_ event: NSEvent) -> Bool {
@@ -370,14 +429,27 @@ final class AppModel {
         }
     }
 
-    private func prepareFullScreenTranslateSession() async {
-        guard currentScreenSession == nil, !overlayCoordinator.isPresented, !isSessionPreparationInFlight else {
+    private func beginVisibleScreenSession(autoTranslateScreen: Bool) {
+        guard currentScreenSession == nil, !overlayCoordinator.isPresented, !launcherCoordinator.isPresented, !isSessionPreparationInFlight else {
+            AppLogger.app.debug("Ignored capture-session trigger because a session is already active or preparing.")
+            return
+        }
+
+        Task {
+            await prepareVisibleScreenSession(autoTranslateScreen: autoTranslateScreen)
+        }
+    }
+
+    private func prepareVisibleScreenSession(autoTranslateScreen: Bool) async {
+        guard currentScreenSession == nil, !overlayCoordinator.isPresented, !launcherCoordinator.isPresented, !isSessionPreparationInFlight else {
             return
         }
 
         isSessionPreparationInFlight = true
         lastErrorMessage = nil
-        statusMessage = "Capturing the visible screen..."
+        statusMessage = autoTranslateScreen
+            ? "Capturing the visible screen for translation..."
+            : "Capturing the visible screen..."
 
         defer {
             isSessionPreparationInFlight = false
@@ -385,7 +457,8 @@ final class AppModel {
 
         do {
             let snapshot = try await screenCaptureService.captureDisplayUnderCursor()
-            let session = ScreenTranslationSession(snapshot: snapshot)
+            var session = ScreenTranslationSession(snapshot: snapshot)
+            session.queuedTranslateRequest = autoTranslateScreen
 
             currentScreenSession = session
             AppLogger.app.info(
@@ -399,7 +472,9 @@ final class AppModel {
                 }
             )
 
-            statusMessage = "Analyzing the visible screen..."
+            statusMessage = autoTranslateScreen
+                ? "Analyzing the visible screen before translation..."
+                : "Analyzing the visible screen..."
             await analyzeCurrentScreen(sessionID: session.id, snapshot: snapshot)
         } catch {
             lastErrorMessage = error.localizedDescription
@@ -917,6 +992,13 @@ final class AppModel {
     }
 
     private func openSearchAndClose(query: String) {
+        statusMessage = "Opening search results..."
+        lastErrorMessage = nil
+        openWebSearch(query: query)
+        closeCurrentScreenSession()
+    }
+
+    private func openWebSearch(query: String) {
         guard let url = searchURL(for: query) else {
             AppLogger.app.error("Failed to build a search URL for the selected content.")
             lastErrorMessage = "The selected content could not be searched."
@@ -924,10 +1006,7 @@ final class AppModel {
             return
         }
 
-        statusMessage = "Opening search results..."
-        lastErrorMessage = nil
         NSWorkspace.shared.open(url)
-        closeCurrentScreenSession()
     }
 
     private func makeImageSearchQuery(
